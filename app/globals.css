@@ -1,26 +1,151 @@
+@import url("https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background:    #F7F8FA;
+  --color-surface-1:     #FFFFFF;
+  --color-surface-2:     #F3F4F6;
+  --color-surface-3:     #E9EAED;
+  --color-border:        rgba(0, 0, 0, 0.07);
+  --color-border-strong: rgba(0, 0, 0, 0.13);
+  --color-text-primary:  #0A0A0B;
+  --color-text-secondary:#4B5563;
+  --color-text-muted:    #9CA3AF;
+  --color-accent:        #0D9373;
+  --color-accent-dim:    rgba(13, 147, 115, 0.08);
+  --color-green:         #059669;
+  --color-green-dim:     rgba(5, 150, 105, 0.10);
+  --color-red:           #DC2626;
+  --color-red-dim:       rgba(220, 38, 38, 0.10);
+  --color-yellow:        #D97706;
+  --color-yellow-dim:    rgba(217, 119, 6, 0.10);
+  --font-display: "Syne", system-ui, sans-serif;
+  --font-body:    "Manrope", system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", "Fira Code", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background:     #F7F8FA;
+  --surface-1:      #FFFFFF;
+  --surface-2:      #F3F4F6;
+  --surface-3:      #E9EAED;
+  --border:         rgba(0, 0, 0, 0.07);
+  --border-strong:  rgba(0, 0, 0, 0.13);
+  --text-primary:   #0A0A0B;
+  --text-secondary: #4B5563;
+  --text-muted:     #9CA3AF;
+  --accent:         #0D9373;
+  --accent-hover:   #0B7D62;
+  --accent-glow:    rgba(13, 147, 115, 0.08);
+  --green:          #059669;
+  --red:            #DC2626;
+  --yellow:         #D97706;
+  --hover-bg:       rgba(0, 0, 0, 0.025);
+  --hover-bg-md:    rgba(0, 0, 0, 0.05);
+  --shadow-xs:      0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm:      0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md:      0 4px 8px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --shadow-lg:      0 12px 24px -4px rgba(0, 0, 0, 0.10), 0 4px 8px -4px rgba(0, 0, 0, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* Subtle gradient mesh — Stripe-style depth */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 60% at -5% -10%, rgba(13, 147, 115, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 105% 110%, rgba(79, 70, 229, 0.05) 0%, transparent 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar          { width: 5px; height: 5px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: var(--surface-3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.15); }
+
+/* Number utility — monospace tabular figures */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.positive { color: var(--green); }
+.negative { color: var(--red); }
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Stripe-style interactive row */
+.row-hover {
+  transition: background 100ms ease;
+}
+.row-hover:hover {
+  background: var(--hover-bg);
+}
+
+/* Page entrance animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.anim-1 { animation-delay: 0ms; }
+.anim-2 { animation-delay: 50ms; }
+.anim-3 { animation-delay: 100ms; }
+.anim-4 { animation-delay: 150ms; }
+.anim-5 { animation-delay: 200ms; }
+.anim-6 { animation-delay: 250ms; }
+.anim-7 { animation-delay: 300ms; }
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 50%,
+    var(--surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
 }
