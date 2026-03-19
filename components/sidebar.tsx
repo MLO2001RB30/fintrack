@@ -8,6 +8,7 @@ import {
   RefreshCw,
   LineChart,
   ArrowLeftRight,
+  PieChart,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -17,10 +18,11 @@ import { ACCOUNTS } from "@/lib/mock-data";
 
 const NAV_ITEMS = [
   { href: "/",              icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/accounts",      icon: Building2,       label: "Accounts" },
-  { href: "/subscriptions", icon: RefreshCw,       label: "Subscriptions" },
-  { href: "/transactions",  icon: ArrowLeftRight,  label: "Transactions" },
-  { href: "/investments",   icon: LineChart,       label: "Investments" },
+  { href: "/accounts",      icon: Building2,       label: "Konti" },
+  { href: "/transactions",  icon: ArrowLeftRight,  label: "Transaktioner" },
+  { href: "/spending",      icon: PieChart,        label: "Forbrug" },
+  { href: "/subscriptions", icon: RefreshCw,       label: "Abonnementer" },
+  { href: "/investments",   icon: LineChart,       label: "Invest." },
 ];
 
 const BOTTOM_ITEMS = [
@@ -67,14 +69,12 @@ export function Sidebar() {
 
   return (
     <aside
+      className="sidebar-desktop"
       style={{
         width: collapsed ? 56 : 232,
         transition: "width 220ms cubic-bezier(0.4, 0, 0.2, 1)",
         background: "#FFFFFF",
         borderRight: "1px solid var(--border)",
-        display: "flex",
-        flexDirection: "column",
-        flexShrink: 0,
         position: "relative",
         zIndex: 10,
       }}
@@ -338,5 +338,77 @@ export function Sidebar() {
         </button>
       </div>
     </aside>
+  );
+}
+
+// ─── Mobile bottom navigation bar ────────────────────────────────────────────
+
+export function MobileNav() {
+  const pathname = usePathname();
+  const hasExpiredAccounts = useMemo(() => ACCOUNTS.some(a => a.status === "expired"), []);
+
+  // Show only the most important 5 items on mobile
+  const mobileItems = NAV_ITEMS.slice(0, 6);
+
+  return (
+    <nav
+      className="nav-mobile"
+      style={{
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: "#FFFFFF",
+        borderTop: "1px solid var(--border)",
+        zIndex: 50,
+        justifyContent: "space-around",
+        alignItems: "stretch",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      }}
+    >
+      {mobileItems.map(({ href, icon: Icon, label }) => {
+        const active = pathname === href;
+        const showAlert = href === "/accounts" && hasExpiredAccounts;
+        return (
+          <Link
+            key={href}
+            href={href}
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 3,
+              padding: "10px 4px",
+              textDecoration: "none",
+              color: active ? "var(--accent)" : "var(--text-muted)",
+              position: "relative",
+            }}
+          >
+            <span style={{ position: "relative", display: "flex" }}>
+              <Icon size={20} strokeWidth={active ? 2.2 : 1.8} />
+              {showAlert && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: -2,
+                    right: -3,
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: "var(--red)",
+                    border: "1.5px solid #fff",
+                  }}
+                />
+              )}
+            </span>
+            <span style={{ fontSize: 10, fontWeight: active ? 600 : 400, letterSpacing: "-0.01em" }}>
+              {label}
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }

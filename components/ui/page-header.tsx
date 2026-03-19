@@ -6,15 +6,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        marginBottom: 28,
-        gap: 16,
-      }}
-    >
+    <div className="page-header-wrap">
       <div>
         <h1
           style={{

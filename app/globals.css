@@ -120,8 +120,86 @@ body::before {
   to   { opacity: 1; }
 }
 
+/* Modal / overlay entrance */
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Side panel slide-in (drill-down, detail panels) */
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(18px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Progress bar grow from 0 → --target-w */
+@keyframes growBar {
+  from { width: 0; }
+  to   { width: var(--target-w, 100%); }
+}
+
+/* Subtle glow pulse used on accent KPI card */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 4px 12px rgba(13,147,115,0.25), 0 1px 3px rgba(13,147,115,0.15); }
+  50%       { box-shadow: 0 6px 20px rgba(13,147,115,0.38), 0 2px 6px rgba(13,147,115,0.22); }
+}
+
+/* Number value pop — subtle scale when a KPI value finishes counting */
+@keyframes valuePop {
+  0%   { transform: scale(1); }
+  60%  { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
 .animate-fade-up {
   animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-modal-in {
+  animation: modalIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-backdrop-in {
+  animation: backdropIn 0.22s ease both;
+}
+
+.animate-slide-right {
+  animation: slideInRight 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Progress bar — set --target-w inline, optionally --bar-delay for stagger */
+.progress-bar-animated {
+  height: 100%;
+  border-radius: 2px;
+  animation: growBar 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--bar-delay, 0ms);
+  width: var(--target-w, 0%);
+}
+
+/* Card hover lift */
+.card-hover {
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* Accent KPI pulse */
+.kpi-accent-pulse {
+  animation: glowPulse 3s ease-in-out infinite;
+}
+
+/* Value pop — applied when count-up completes */
+.value-pop {
+  animation: valuePop 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .anim-1 { animation-delay: 0ms; }
@@ -131,6 +209,143 @@ body::before {
 .anim-5 { animation-delay: 200ms; }
 .anim-6 { animation-delay: 250ms; }
 .anim-7 { animation-delay: 300ms; }
+
+/* ─── Responsive layout utilities ───────────────────────────────────────────── */
+
+/* Page wrapper */
+.page-wrap {
+  padding: 32px 36px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Responsive grids */
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+}
+.grid-invest {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 320px;
+  gap: 14px;
+}
+/* Chart + sidebar panel (e.g. 1fr 320px) */
+.grid-main {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+/* Top subscriptions 5-up */
+.subs-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+/* Accounts summary flex bar */
+.accounts-summary {
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+.page-header-wrap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  gap: 16px;
+}
+@media (max-width: 640px) {
+  .page-header-wrap {
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+}
+/* Table horizontal scroll */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Subs grid — last child per row has no right border */
+.subs-grid > *:last-child { border-right: none !important; }
+@media (max-width: 640px) {
+  .subs-grid > *:nth-child(2n) { border-right: none !important; }
+  .chart-tall { height: 220px !important; }
+  /* Transaction detail modal — bottom sheet on mobile */
+  .modal-sheet {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    max-width: 100% !important;
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 85dvh;
+    overflow-y: auto;
+  }
+}
+
+/* Sidebar / nav visibility */
+.sidebar-desktop {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.nav-mobile {
+  display: none;
+}
+
+/* ─── Mobile breakpoint ──────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Page padding — extra bottom space for the mobile nav bar */
+  .page-wrap {
+    padding: 16px 16px 88px;
+  }
+
+  /* Grids collapse */
+  .grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .grid-3 {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .grid-invest {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .grid-main {
+    grid-template-columns: 1fr;
+  }
+  .subs-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .accounts-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* Sidebar hidden, mobile nav shown */
+  .sidebar-desktop {
+    display: none !important;
+  }
+  .nav-mobile {
+    display: flex;
+  }
+}
 
 /* Skeleton shimmer */
 @keyframes shimmer {

@@ -155,7 +155,7 @@ export function Dashboard() {
   const expiredAccounts = ACCOUNTS.filter(a => a.status === "expired");
 
   return (
-    <div style={{ padding: "32px 36px", position: "relative", zIndex: 1 }}>
+    <div className="page-wrap">
       <PageHeader
         title="Dashboard"
         subtitle={`${new Date().toLocaleDateString("da-DK", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`}
@@ -170,9 +170,12 @@ export function Dashboard() {
               border: "1px solid var(--border)",
               borderRadius: 8,
               fontSize: 12.5,
-              color: "var(--text-secondary)",
-              cursor: "pointer",
+              color: "var(--text-muted)",
+              cursor: "default",
+              userSelect: "none",
+              opacity: 0.8,
             }}
+            title="Datofiltrering kommer snart"
           >
             <Calendar size={13} />
             Seneste 90 dage
@@ -208,18 +211,13 @@ export function Dashboard() {
       )}
 
       {/* KPI row */}
-      <div
-        className="animate-fade-up anim-2"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 14,
-          marginBottom: 24,
-        }}
-      >
+      <div className="animate-fade-up anim-2 grid-4" style={{ marginBottom: 24 }}>
         <KpiCard
           label="Samlet formue"
           value={formatDKK(NET_WORTH_NOW.total)}
+          rawValue={NET_WORTH_NOW.total}
+          formatFn={n => formatDKK(Math.round(n))}
+          animDelay={80}
           change={`${formatChange(NET_WORTH_CHANGE)} (${formatPct(NET_WORTH_PCT)})`}
           changePositive={up}
           sub="seneste 90 dage"
@@ -228,30 +226,31 @@ export function Dashboard() {
         <KpiCard
           label="Bankkonti"
           value={formatDKK(totalBank)}
+          rawValue={totalBank}
+          formatFn={n => formatDKK(Math.round(n))}
+          animDelay={140}
           sub={`${ACCOUNTS.filter(a => a.status === "active").length} konti tilsluttet`}
         />
         <KpiCard
           label="Investeringer"
           value={formatDKK(totalInvestments)}
+          rawValue={totalInvestments}
+          formatFn={n => formatDKK(Math.round(n))}
+          animDelay={200}
           sub={`${HOLDINGS.length} beholdninger`}
         />
         <KpiCard
           label="Månedligt abonnementsforbrug"
           value={formatDKK(MONTHLY_BURN)}
+          rawValue={MONTHLY_BURN}
+          formatFn={n => formatDKK(Math.round(n))}
+          animDelay={260}
           sub={`${SUBSCRIPTIONS.filter(s => s.status === "active").length} aktive abonnementer`}
         />
       </div>
 
       {/* Net worth chart + accounts */}
-      <div
-        className="animate-fade-up anim-3"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 320px",
-          gap: 16,
-          marginBottom: 16,
-        }}
-      >
+      <div className="animate-fade-up anim-3 grid-main">
         {/* Chart */}
         <Card>
           <CardHeader>
@@ -264,7 +263,7 @@ export function Dashboard() {
             </div>
           </CardHeader>
           <CardBody style={{ paddingTop: 8 }}>
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={240} className="chart-tall">
               <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
@@ -324,15 +323,36 @@ export function Dashboard() {
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                padding: "10px 0 4px",
+                padding: "10px 0 2px",
                 fontSize: 12,
                 fontWeight: 600,
                 color: "var(--text-secondary)",
               }}
             >
-              <span>Total</span>
-              <span>{formatDKK(ACCOUNTS.reduce((s, a) => s + a.balanceOere, 0))}</span>
+              <span>Aktive konti</span>
+              <span>{formatDKK(ACCOUNTS.filter(a => a.status === "active").reduce((s, a) => s + a.balanceOere, 0))}</span>
             </div>
+            {ACCOUNTS.some(a => a.status === "expired") && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--text-muted)",
+                  padding: "0 0 6px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <AlertCircle size={10} color="var(--red)" />
+                  <span style={{ color: "var(--red)" }}>
+                    {ACCOUNTS.filter(a => a.status === "expired").map(a => a.institution).join(", ")} (udløbet — ikke medregnet)
+                  </span>
+                </span>
+                <span style={{ color: "var(--text-muted)" }}>
+                  {formatDKK(ACCOUNTS.filter(a => a.status === "expired").reduce((s, a) => s + a.balanceOere, 0))}
+                </span>
+              </div>
+            )}
           </CardBody>
         </Card>
       </div>
@@ -358,7 +378,7 @@ export function Dashboard() {
             </div>
           </CardHeader>
           <CardBody style={{ padding: 0 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)" }}>
+            <div className="subs-grid">
               {topSubs.map((sub, i) => {
                 const monthly = monthlyEquivalent(sub);
                 const pct = (monthly / MONTHLY_BURN) * 100;
@@ -372,7 +392,7 @@ export function Dashboard() {
                       gap: 6,
                       padding: "16px 20px",
                       textDecoration: "none",
-                      borderRight: i < 4 ? "1px solid var(--border)" : "none",
+                      borderRight: "1px solid var(--border)",
                       transition: "background 120ms",
                     }}
                     onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.background = "var(--hover-bg)")}
@@ -387,15 +407,15 @@ export function Dashboard() {
                       <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 2 }}>/md</span>
                     </div>
                     {/* Mini bar */}
-                    <div style={{ height: 3, background: "var(--surface-3)", borderRadius: 2, marginTop: 2 }}>
+                    <div style={{ height: 3, background: "var(--surface-3)", borderRadius: 2, marginTop: 2, overflow: "hidden" }}>
                       <div
+                        className="progress-bar-animated"
                         style={{
-                          height: "100%",
-                          width: `${pct}%`,
+                          "--target-w": `${pct}%`,
+                          "--bar-delay": `${350 + i * 60}ms`,
                           background: "var(--accent)",
-                          borderRadius: 2,
                           opacity: 0.7,
-                        }}
+                        } as React.CSSProperties}
                       />
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{pct.toFixed(0)}% af forbrug</div>

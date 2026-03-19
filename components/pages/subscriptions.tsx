@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Search, ArrowUpDown, ExternalLink, ChevronDown, CreditCard, RefreshCw } from "lucide-react";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
   SUBSCRIPTIONS,
   MONTHLY_BURN,
@@ -87,37 +88,36 @@ export function SubscriptionsPage() {
   );
 
   return (
-    <div style={{ padding: "32px 36px", position: "relative", zIndex: 1 }}>
+    <div className="page-wrap">
       <PageHeader
         title="Abonnementer"
         subtitle="Automatisk opdaget fra dine banktransaktioner"
       />
 
       {/* Burn summary */}
-      <div
-        className="animate-fade-up anim-1"
-        style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}
-      >
+      <div className="animate-fade-up anim-1 grid-4" style={{ marginBottom: 24 }}>
         {[
-          { label: "Månedligt forbrug", value: formatDKK(activeMonthly), sub: "aktive abonnementer" },
-          { label: "Årligt forbrug", value: formatDKK(annualBurn), sub: "estimeret" },
-          { label: "Aktive", value: `${SUBSCRIPTIONS.filter(s => s.status === "active").length}`, sub: "abonnementer" },
-          { label: "På pause / Annullerede", value: `${SUBSCRIPTIONS.filter(s => s.status !== "active").length}`, sub: "abonnementer" },
+          { label: "Månedligt forbrug", rawValue: activeMonthly, format: (n: number) => formatDKK(Math.round(n)), sub: "aktive abonnementer", delay: 80 },
+          { label: "Årligt forbrug", rawValue: annualBurn, format: (n: number) => formatDKK(Math.round(n)), sub: "estimeret", delay: 140 },
+          { label: "Aktive", rawValue: SUBSCRIPTIONS.filter(s => s.status === "active").length, format: (n: number) => `${Math.round(n)}`, sub: "abonnementer", delay: 200 },
+          { label: "På pause / Annullerede", rawValue: SUBSCRIPTIONS.filter(s => s.status !== "active").length, format: (n: number) => `${Math.round(n)}`, sub: "abonnementer", delay: 260 },
         ].map(s => (
           <div
             key={s.label}
+            className="card-hover"
             style={{
               background: "var(--surface-1)",
               border: "1px solid var(--border)",
               borderRadius: 12,
               padding: "16px 18px",
+              boxShadow: "var(--shadow-sm)",
             }}
           >
             <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
               {s.label}
             </div>
             <div className="num" style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
-              {s.value}
+              <AnimatedNumber value={s.rawValue} format={s.format} delay={s.delay} />
             </div>
             <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>{s.sub}</div>
           </div>
@@ -146,11 +146,15 @@ export function SubscriptionsPage() {
                   <div
                     key={sub.id}
                     title={`${sub.merchant}: ${formatDKK(monthlyEquivalent(sub))}/md`}
+                    className="progress-bar-animated"
                     style={{
-                      flex: `0 0 ${pct}%`,
+                      "--target-w": `${pct}%`,
+                      "--bar-delay": `${150 + i * 30}ms`,
+                      flexShrink: 0,
                       background: `hsl(${hue},65%,58%)`,
                       transition: "opacity 150ms",
-                    }}
+                      borderRadius: 0,
+                    } as React.CSSProperties}
                     onMouseEnter={e => (e.currentTarget.style.opacity = "0.7")}
                     onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
                   />
@@ -236,7 +240,7 @@ export function SubscriptionsPage() {
 
       {/* Table */}
       <Card className="animate-fade-up anim-4">
-        <div style={{ overflowX: "auto" }}>
+        <div className="table-scroll">
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
@@ -335,11 +339,12 @@ export function SubscriptionsPage() {
 
                     {/* Action */}
                     <td style={{ padding: "13px 20px" }}>
-                      {sub.cancelUrl && sub.status === "active" && (
+                      {sub.cancelUrl && sub.status === "active" ? (
                         <a
                           href={sub.cancelUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          title="Åbn opsigelsessiden hos udbyderen"
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
@@ -363,7 +368,14 @@ export function SubscriptionsPage() {
                         >
                           Opsig <ExternalLink size={10} />
                         </a>
-                      )}
+                      ) : sub.status === "active" ? (
+                        <span
+                          title="Direkte opsigelseslink ikke tilgængeligt for denne udbyder"
+                          style={{ fontSize: 11.5, color: "var(--text-muted)", cursor: "help" }}
+                        >
+                          —
+                        </span>
+                      ) : null}
                     </td>
                   </tr>
                 );
@@ -382,6 +394,13 @@ export function SubscriptionsPage() {
           )}
         </div>
       </Card>
+
+      {/* Footnote explaining Opsig availability */}
+      <div style={{ marginTop: 12, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
+        <strong style={{ color: "var(--text-secondary)" }}>Om opsigelseslinks:</strong>{" "}
+        "Opsig"-knappen vises kun for udbydere, hvor FinTrack kender det direkte link til opsigelsessiden.
+        For øvrige abonnementer skal du manuelt logge ind hos udbyderen for at opsige.
+      </div>
     </div>
   );
 }
