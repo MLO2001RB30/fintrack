@@ -150,7 +150,7 @@ export const MONTHLY_BURN = SUBSCRIPTIONS
 
 // ─── Cash Flow Planning ───────────────────────────────────────────────────────
 
-export const MOCK_TODAY = "2026-03-18";
+export const MOCK_TODAY = "2026-03-19";
 
 export interface CashFlowEvent {
   id: string;
@@ -545,7 +545,7 @@ function seededRandom(seed: number) {
 function generateNetWorthHistory(): NetWorthPoint[] {
   const rng = seededRandom(42);
   const data: NetWorthPoint[] = [];
-  const today = new Date("2026-03-18");
+  const today = new Date("2026-03-19");
 
   let bank = 19_200_000;
   let inv  = 47_500_000;

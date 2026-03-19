@@ -504,7 +504,7 @@ export function Dashboard() {
                 {formatDKK(Math.max(totalBudgetLimit - spentAgainstBudget, 0))}
               </div>
               <div style={{ marginTop: 6, fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>
-                {formatPct((spentAgainstBudget / totalBudgetLimit) * 100)} af budgettet er brugt · {formatDKK(goalContribution)}/md går til mål.
+                {((spentAgainstBudget / totalBudgetLimit) * 100).toFixed(1)}% af budgettet er brugt · {formatDKK(goalContribution)}/md går til mål.
               </div>
               <Link href="/plan" style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, color: "var(--accent)", textDecoration: "none", fontSize: 12.5 }}>
                 Åbn plan <ArrowRight size={12} />
