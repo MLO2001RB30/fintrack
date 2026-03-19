@@ -224,6 +224,7 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
+        className="modal-sheet"
         style={{
           background: "var(--surface-1)",
           border: "1px solid var(--border-strong)",
@@ -303,7 +304,7 @@ export function AccountsPage() {
   const activeCount = ACCOUNTS.filter(a => a.status === "active").length;
 
   return (
-    <div style={{ padding: "32px 36px", position: "relative", zIndex: 1 }}>
+    <div className="page-wrap">
       {modal && <ConnectModal onClose={() => setModal(false)} />}
 
       <PageHeader
@@ -337,7 +338,7 @@ export function AccountsPage() {
 
       {/* Summary bar */}
       <Card className="animate-fade-up anim-1" style={{ marginBottom: 24 }}>
-        <CardBody style={{ display: "flex", gap: 40 }}>
+        <CardBody className="accounts-summary">
           {[
             { label: "Samlet saldo", value: formatDKK(totalBalance), highlight: true },
             { label: "Aktive forbindelser", value: `${activeCount}` },

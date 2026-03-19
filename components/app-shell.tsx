@@ -1,10 +1,10 @@
 "use client";
 
-import { Sidebar } from "./sidebar";
+import { Sidebar, MobileNav } from "./sidebar";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden", position: "relative", zIndex: 1 }}>
+    <div style={{ display: "flex", height: "100dvh", overflow: "hidden", position: "relative", zIndex: 1 }}>
       <Sidebar />
       <main
         style={{
@@ -16,6 +16,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {children}
       </main>
+      <MobileNav />
     </div>
   );
 }

@@ -155,7 +155,7 @@ export function Dashboard() {
   const expiredAccounts = ACCOUNTS.filter(a => a.status === "expired");
 
   return (
-    <div style={{ padding: "32px 36px", position: "relative", zIndex: 1 }}>
+    <div className="page-wrap">
       <PageHeader
         title="Dashboard"
         subtitle={`${new Date().toLocaleDateString("da-DK", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`}
@@ -211,15 +211,7 @@ export function Dashboard() {
       )}
 
       {/* KPI row */}
-      <div
-        className="animate-fade-up anim-2"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 14,
-          marginBottom: 24,
-        }}
-      >
+      <div className="animate-fade-up anim-2 grid-4" style={{ marginBottom: 24 }}>
         <KpiCard
           label="Samlet formue"
           value={formatDKK(NET_WORTH_NOW.total)}
@@ -246,15 +238,7 @@ export function Dashboard() {
       </div>
 
       {/* Net worth chart + accounts */}
-      <div
-        className="animate-fade-up anim-3"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 320px",
-          gap: 16,
-          marginBottom: 16,
-        }}
-      >
+      <div className="animate-fade-up anim-3 grid-main">
         {/* Chart */}
         <Card>
           <CardHeader>
@@ -267,7 +251,7 @@ export function Dashboard() {
             </div>
           </CardHeader>
           <CardBody style={{ paddingTop: 8 }}>
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={240} className="chart-tall">
               <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
@@ -382,7 +366,7 @@ export function Dashboard() {
             </div>
           </CardHeader>
           <CardBody style={{ padding: 0 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)" }}>
+            <div className="subs-grid">
               {topSubs.map((sub, i) => {
                 const monthly = monthlyEquivalent(sub);
                 const pct = (monthly / MONTHLY_BURN) * 100;
@@ -396,7 +380,7 @@ export function Dashboard() {
                       gap: 6,
                       padding: "16px 20px",
                       textDecoration: "none",
-                      borderRight: i < 4 ? "1px solid var(--border)" : "none",
+                      borderRight: "1px solid var(--border)",
                       transition: "background 120ms",
                     }}
                     onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.background = "var(--hover-bg)")}

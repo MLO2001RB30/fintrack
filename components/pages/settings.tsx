@@ -67,7 +67,7 @@ export function SettingsPage() {
   });
 
   return (
-    <div style={{ padding: "32px 36px", position: "relative", zIndex: 1 }}>
+    <div className="page-wrap">
       <PageHeader title="Indstillinger" subtitle="Administrer din konto og forbindelser" />
 
       <div style={{ maxWidth: 640 }}>
@@ -116,7 +116,7 @@ export function SettingsPage() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div className="grid-2" style={{ gap: 12 }}>
                 <InputField label="Navn" value={name} onChange={setName} />
                 <InputField label="Email" value={email} type="email" onChange={setEmail} />
               </div>

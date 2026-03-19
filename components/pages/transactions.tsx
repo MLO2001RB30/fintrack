@@ -66,6 +66,7 @@ function TransactionModal({ tx, onClose }: { tx: Transaction; onClose: () => voi
       }}
     >
       <div
+        className="modal-sheet"
         style={{
           background: "var(--surface-1)",
           border: "1px solid var(--border)",
@@ -254,7 +255,7 @@ export function TransactionsPage() {
   const hasFilters = search || filterAccount !== "all" || filterCategory !== "all";
 
   return (
-    <div style={{ padding: "32px 36px", position: "relative", zIndex: 1 }}>
+    <div className="page-wrap">
       {selectedTx && (
         <TransactionModal tx={selectedTx} onClose={() => setSelectedTx(null)} />
       )}
@@ -265,10 +266,7 @@ export function TransactionsPage() {
       />
 
       {/* Summary */}
-      <div
-        className="animate-fade-up anim-1"
-        style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}
-      >
+      <div className="animate-fade-up anim-1 grid-3" style={{ marginBottom: 24 }}>
         {[
           { label: "Indgående", value: formatDKK(totalIn), color: "var(--green)" },
           { label: "Udgående", value: formatDKK(Math.abs(totalOut)), color: "var(--red)" },

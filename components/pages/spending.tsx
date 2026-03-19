@@ -130,17 +130,14 @@ export function SpendingPage() {
   );
 
   return (
-    <div style={{ padding: "32px 36px", position: "relative", zIndex: 1 }}>
+    <div className="page-wrap">
       <PageHeader
         title="Forbrug"
         subtitle="Kategoriseret udgiftsanalyse fra dine transaktioner"
       />
 
       {/* Summary KPIs */}
-      <div
-        className="animate-fade-up anim-1"
-        style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}
-      >
+      <div className="animate-fade-up anim-1 grid-3" style={{ marginBottom: 24 }}>
         <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
             Samlet forbrug
@@ -204,7 +201,7 @@ export function SpendingPage() {
             )}
           </CardHeader>
           <CardBody style={{ paddingTop: 8 }}>
-            <ResponsiveContainer width="100%" height={320}>
+            <ResponsiveContainer width="100%" height={320} className="chart-tall">
               <BarChart
                 data={byCategory}
                 margin={{ top: 4, right: 8, left: -10, bottom: 60 }}

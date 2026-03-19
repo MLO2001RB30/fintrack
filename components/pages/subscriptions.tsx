@@ -87,17 +87,14 @@ export function SubscriptionsPage() {
   );
 
   return (
-    <div style={{ padding: "32px 36px", position: "relative", zIndex: 1 }}>
+    <div className="page-wrap">
       <PageHeader
         title="Abonnementer"
         subtitle="Automatisk opdaget fra dine banktransaktioner"
       />
 
       {/* Burn summary */}
-      <div
-        className="animate-fade-up anim-1"
-        style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}
-      >
+      <div className="animate-fade-up anim-1 grid-4" style={{ marginBottom: 24 }}>
         {[
           { label: "Månedligt forbrug", value: formatDKK(activeMonthly), sub: "aktive abonnementer" },
           { label: "Årligt forbrug", value: formatDKK(annualBurn), sub: "estimeret" },
@@ -236,7 +233,7 @@ export function SubscriptionsPage() {
 
       {/* Table */}
       <Card className="animate-fade-up anim-4">
-        <div style={{ overflowX: "auto" }}>
+        <div className="table-scroll">
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
