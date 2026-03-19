@@ -62,9 +62,11 @@ export function CardTitle({ children }: { children: React.ReactNode }) {
 export function CardBody({
   children,
   style,
+  className,
 }: {
   children: React.ReactNode;
   style?: React.CSSProperties;
+  className?: string;
 }) {
-  return <div style={{ padding: "16px 20px", ...style }}>{children}</div>;
+  return <div className={className} style={{ padding: "16px 20px", ...style }}>{children}</div>;
 }
