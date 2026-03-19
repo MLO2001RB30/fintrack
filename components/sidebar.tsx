@@ -8,6 +8,7 @@ import {
   RefreshCw,
   LineChart,
   ArrowLeftRight,
+  PieChart,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { href: "/accounts",      icon: Building2,       label: "Accounts" },
   { href: "/subscriptions", icon: RefreshCw,       label: "Subscriptions" },
   { href: "/transactions",  icon: ArrowLeftRight,  label: "Transactions" },
+  { href: "/spending",      icon: PieChart,        label: "Forbrug" },
   { href: "/investments",   icon: LineChart,       label: "Investments" },
 ];
 

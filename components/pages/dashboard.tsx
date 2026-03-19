@@ -170,9 +170,12 @@ export function Dashboard() {
               border: "1px solid var(--border)",
               borderRadius: 8,
               fontSize: 12.5,
-              color: "var(--text-secondary)",
-              cursor: "pointer",
+              color: "var(--text-muted)",
+              cursor: "default",
+              userSelect: "none",
+              opacity: 0.8,
             }}
+            title="Datofiltrering kommer snart"
           >
             <Calendar size={13} />
             Seneste 90 dage
@@ -324,15 +327,36 @@ export function Dashboard() {
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                padding: "10px 0 4px",
+                padding: "10px 0 2px",
                 fontSize: 12,
                 fontWeight: 600,
                 color: "var(--text-secondary)",
               }}
             >
-              <span>Total</span>
-              <span>{formatDKK(ACCOUNTS.reduce((s, a) => s + a.balanceOere, 0))}</span>
+              <span>Aktive konti</span>
+              <span>{formatDKK(ACCOUNTS.filter(a => a.status === "active").reduce((s, a) => s + a.balanceOere, 0))}</span>
             </div>
+            {ACCOUNTS.some(a => a.status === "expired") && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--text-muted)",
+                  padding: "0 0 6px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <AlertCircle size={10} color="var(--red)" />
+                  <span style={{ color: "var(--red)" }}>
+                    {ACCOUNTS.filter(a => a.status === "expired").map(a => a.institution).join(", ")} (udløbet — ikke medregnet)
+                  </span>
+                </span>
+                <span style={{ color: "var(--text-muted)" }}>
+                  {formatDKK(ACCOUNTS.filter(a => a.status === "expired").reduce((s, a) => s + a.balanceOere, 0))}
+                </span>
+              </div>
+            )}
           </CardBody>
         </Card>
       </div>

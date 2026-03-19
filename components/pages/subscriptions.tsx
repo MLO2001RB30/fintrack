@@ -335,11 +335,12 @@ export function SubscriptionsPage() {
 
                     {/* Action */}
                     <td style={{ padding: "13px 20px" }}>
-                      {sub.cancelUrl && sub.status === "active" && (
+                      {sub.cancelUrl && sub.status === "active" ? (
                         <a
                           href={sub.cancelUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          title="Åbn opsigelsessiden hos udbyderen"
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
@@ -363,7 +364,14 @@ export function SubscriptionsPage() {
                         >
                           Opsig <ExternalLink size={10} />
                         </a>
-                      )}
+                      ) : sub.status === "active" ? (
+                        <span
+                          title="Direkte opsigelseslink ikke tilgængeligt for denne udbyder"
+                          style={{ fontSize: 11.5, color: "var(--text-muted)", cursor: "help" }}
+                        >
+                          —
+                        </span>
+                      ) : null}
                     </td>
                   </tr>
                 );
@@ -382,6 +390,13 @@ export function SubscriptionsPage() {
           )}
         </div>
       </Card>
+
+      {/* Footnote explaining Opsig availability */}
+      <div style={{ marginTop: 12, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
+        <strong style={{ color: "var(--text-secondary)" }}>Om opsigelseslinks:</strong>{" "}
+        "Opsig"-knappen vises kun for udbydere, hvor FinTrack kender det direkte link til opsigelsessiden.
+        For øvrige abonnementer skal du manuelt logge ind hos udbyderen for at opsige.
+      </div>
     </div>
   );
 }

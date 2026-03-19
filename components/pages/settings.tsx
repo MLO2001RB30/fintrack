@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, RefreshCw, Trash2, Download, AlertTriangle, CheckCircle, Shield, Bell } from "lucide-react";
+import { Building2, RefreshCw, Trash2, Download, AlertTriangle, CheckCircle, Shield, Bell, ChevronDown } from "lucide-react";
 import { ACCOUNTS } from "@/lib/mock-data";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +59,7 @@ export function SettingsPage() {
   const [email, setEmail] = useState("mads@example.dk");
   const [currency, setCurrency] = useState("DKK");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [dangerOpen, setDangerOpen] = useState(false);
   const [notifications, setNotifications] = useState({
     newSubscription: true,
     expiringBank: true,
@@ -378,104 +379,140 @@ export function SettingsPage() {
           </Card>
         </Section>
 
-        {/* Danger zone */}
-        <Section title="Farezone">
+        {/* Danger zone — collapsed accordion */}
+        <Section title="Avanceret">
           <div
             style={{
-              background: "rgba(239,68,68,0.04)",
-              border: "1px solid rgba(239,68,68,0.2)",
+              border: "1px solid var(--border)",
               borderRadius: 12,
-              padding: "20px",
+              overflow: "hidden",
             }}
           >
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, color: "#F87171", marginBottom: 4 }}>Slet konto</div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
-                Sletter permanent alle dine data inkl. transaktioner, abonnementer og bankforbindelser.
-                Handlingen kan ikke fortrydes. I henhold til GDPR Art. 17 gennemføres sletningen inden for 24 timer.
+            {/* Accordion header */}
+            <button
+              onClick={() => { setDangerOpen(o => !o); setDeleteConfirm(false); }}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "14px 18px",
+                background: dangerOpen ? "rgba(239,68,68,0.04)" : "var(--surface-1)",
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                transition: "background 150ms",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Trash2 size={13} color="var(--red)" />
+                <span style={{ fontSize: 13.5, fontWeight: 500, color: dangerOpen ? "#F87171" : "var(--text-secondary)" }}>
+                  Slet konto
+                </span>
               </div>
-            </div>
-            {!deleteConfirm ? (
-              <button
-                onClick={() => setDeleteConfirm(true)}
+              <ChevronDown
+                size={14}
+                color="var(--text-muted)"
+                style={{ transform: dangerOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 200ms" }}
+              />
+            </button>
+
+            {/* Accordion body */}
+            {dangerOpen && (
+              <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 7,
-                  padding: "8px 16px",
-                  background: "transparent",
-                  border: "1px solid rgba(239,68,68,0.4)",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  color: "var(--red)",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  transition: "all 120ms",
-                }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.6)";
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.4)";
+                  padding: "16px 18px 18px",
+                  background: "rgba(239,68,68,0.04)",
+                  borderTop: "1px solid rgba(239,68,68,0.15)",
                 }}
               >
-                <Trash2 size={13} /> Slet min konto
-              </button>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "10px 14px",
-                    background: "rgba(239,68,68,0.10)",
-                    border: "1px solid rgba(239,68,68,0.3)",
-                    borderRadius: 8,
-                    fontSize: 13,
-                    color: "#F87171",
-                  }}
-                >
-                  <AlertTriangle size={14} />
-                  Er du sikker? Denne handling kan ikke fortrydes.
+                <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 14 }}>
+                  Sletter permanent alle dine data inkl. transaktioner, abonnementer og bankforbindelser.
+                  Handlingen kan ikke fortrydes. I henhold til GDPR Art. 17 gennemføres sletningen inden for 24 timer.
                 </div>
-                <div style={{ display: "flex", gap: 10 }}>
+                {!deleteConfirm ? (
                   <button
-                    onClick={() => setDeleteConfirm(false)}
-                    style={{
-                      padding: "8px 16px",
-                      background: "var(--surface-2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      fontSize: 13,
-                      color: "var(--text-secondary)",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    Annuller
-                  </button>
-                  <button
+                    onClick={() => setDeleteConfirm(true)}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 7,
                       padding: "8px 16px",
-                      background: "var(--red)",
-                      border: "none",
+                      background: "transparent",
+                      border: "1px solid rgba(239,68,68,0.4)",
                       borderRadius: 8,
                       fontSize: 13,
-                      fontWeight: 500,
-                      color: "#fff",
+                      color: "var(--red)",
                       cursor: "pointer",
                       fontFamily: "inherit",
+                      transition: "all 120ms",
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)";
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.6)";
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.4)";
                     }}
                   >
-                    <Trash2 size={13} /> Bekræft sletning
+                    <Trash2 size={13} /> Slet min konto
                   </button>
-                </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "10px 14px",
+                        background: "rgba(239,68,68,0.10)",
+                        border: "1px solid rgba(239,68,68,0.3)",
+                        borderRadius: 8,
+                        fontSize: 13,
+                        color: "#F87171",
+                      }}
+                    >
+                      <AlertTriangle size={14} />
+                      Er du sikker? Denne handling kan ikke fortrydes.
+                    </div>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button
+                        onClick={() => setDeleteConfirm(false)}
+                        style={{
+                          padding: "8px 16px",
+                          background: "var(--surface-2)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 8,
+                          fontSize: 13,
+                          color: "var(--text-secondary)",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        Annuller
+                      </button>
+                      <button
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 7,
+                          padding: "8px 16px",
+                          background: "var(--red)",
+                          border: "none",
+                          borderRadius: 8,
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: "#fff",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <Trash2 size={13} /> Bekræft sletning
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, SlidersHorizontal, RefreshCw, ArrowLeftRight } from "lucide-react";
+import { Search, ArrowLeftRight, RefreshCw, X, Tag } from "lucide-react";
 import { TRANSACTIONS, ACCOUNTS, formatDKK, type Transaction } from "@/lib/mock-data";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MerchantLogo } from "@/components/ui/merchant-logo";
 import Link from "next/link";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function groupByDate(txs: Transaction[]): Record<string, Transaction[]> {
   return txs.reduce((acc, tx) => {
@@ -29,10 +31,208 @@ function formatDateLabel(iso: string) {
   return d.toLocaleDateString("da-DK", { weekday: "long", day: "numeric", month: "long" });
 }
 
+// Generate a plausible raw bank description from the merchant name
+function rawDescription(tx: Transaction): string {
+  const date = tx.date.replace(/-/g, "");
+  const upper = tx.merchant.toUpperCase().replace(/\s+/g, " ").slice(0, 22);
+  const ref = Math.abs(tx.amountOere).toString().slice(-6);
+  return `${upper} ${date} REF${ref}`;
+}
+
+// ─── Transaction Detail Modal ─────────────────────────────────────────────────
+
+function TransactionModal({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
+  const account = ACCOUNTS.find(a => a.id === tx.accountId);
+  const isPos = tx.amountOere > 0;
+
+  // Close on backdrop click
+  function handleBackdrop(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.target === e.currentTarget) onClose();
+  }
+
+  return (
+    <div
+      onClick={handleBackdrop}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.35)",
+        backdropFilter: "blur(4px)",
+        zIndex: 100,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          background: "var(--surface-1)",
+          border: "1px solid var(--border)",
+          borderRadius: 16,
+          width: "100%",
+          maxWidth: 440,
+          boxShadow: "var(--shadow-lg)",
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "16px 20px",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <MerchantLogo merchant={tx.merchant} size={40} radius={10} />
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>{tx.merchant}</div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 1 }}>
+                {new Date(tx.date).toLocaleDateString("da-DK", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--text-muted)",
+              padding: 4,
+              borderRadius: 6,
+              display: "flex",
+              alignItems: "center",
+              transition: "color 100ms",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = "var(--text-primary)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Amount */}
+        <div
+          style={{
+            padding: "20px 20px 16px",
+            display: "flex",
+            alignItems: "baseline",
+            gap: 6,
+          }}
+        >
+          <span
+            className="num"
+            style={{
+              fontSize: 32,
+              fontWeight: 700,
+              letterSpacing: "-0.03em",
+              color: isPos ? "var(--green)" : "var(--text-primary)",
+            }}
+          >
+            {isPos ? "+" : ""}{formatDKK(tx.amountOere)}
+          </span>
+          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>DKK</span>
+        </div>
+
+        {/* Details */}
+        <div style={{ padding: "0 20px 20px", display: "flex", flexDirection: "column", gap: 0 }}>
+          {[
+            {
+              label: "Kategori",
+              value: (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Tag size={11} color="var(--text-muted)" />
+                  <span style={{ fontSize: 13, color: "var(--text-primary)" }}>{tx.category}</span>
+                </div>
+              ),
+            },
+            {
+              label: "Konto",
+              value: (
+                <span style={{ fontSize: 13, color: "var(--text-primary)" }}>
+                  {account?.institution} — {account?.accountName}
+                </span>
+              ),
+            },
+            {
+              label: "IBAN",
+              value: (
+                <span className="num" style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
+                  {account?.iban ?? "—"}
+                </span>
+              ),
+            },
+            {
+              label: "Rå bankbeskrivelse",
+              value: (
+                <span className="num" style={{ fontSize: 11.5, color: "var(--text-muted)", wordBreak: "break-all" }}>
+                  {rawDescription(tx)}
+                </span>
+              ),
+            },
+            tx.isSubscription
+              ? {
+                  label: "Type",
+                  value: (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        fontSize: 11.5,
+                        color: "var(--accent)",
+                        background: "var(--accent-glow)",
+                        padding: "2px 8px",
+                        borderRadius: 4,
+                        border: "1px solid rgba(245,158,11,0.2)",
+                      }}
+                    >
+                      <RefreshCw size={9} /> Abonnement
+                    </span>
+                  ),
+                }
+              : null,
+          ]
+            .filter(Boolean)
+            .map((row, i, arr) => (
+              <div
+                key={row!.label}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "11px 0",
+                  borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none",
+                  gap: 12,
+                }}
+              >
+                <span style={{ fontSize: 12, color: "var(--text-muted)", flexShrink: 0, minWidth: 130 }}>
+                  {row!.label}
+                </span>
+                <div style={{ textAlign: "right" }}>{row!.value}</div>
+              </div>
+            ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── All unique categories ────────────────────────────────────────────────────
+
+const ALL_CATEGORIES = Array.from(new Set(TRANSACTIONS.map(t => t.category))).sort();
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 export function TransactionsPage() {
   const [search, setSearch] = useState("");
   const [filterAccount, setFilterAccount] = useState("all");
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
   const filtered = useMemo(() => {
     let txs = [...TRANSACTIONS];
@@ -41,8 +241,9 @@ export function TransactionsPage() {
       t.category.toLowerCase().includes(search.toLowerCase())
     );
     if (filterAccount !== "all") txs = txs.filter(t => t.accountId === filterAccount);
+    if (filterCategory !== "all") txs = txs.filter(t => t.category === filterCategory);
     return txs.sort((a, b) => b.date.localeCompare(a.date));
-  }, [search, filterAccount]);
+  }, [search, filterAccount, filterCategory]);
 
   const groups = groupByDate(filtered);
   const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
@@ -50,8 +251,14 @@ export function TransactionsPage() {
   const totalIn = filtered.filter(t => t.amountOere > 0).reduce((s, t) => s + t.amountOere, 0);
   const totalOut = filtered.filter(t => t.amountOere < 0).reduce((s, t) => s + t.amountOere, 0);
 
+  const hasFilters = search || filterAccount !== "all" || filterCategory !== "all";
+
   return (
     <div style={{ padding: "32px 36px", position: "relative", zIndex: 1 }}>
+      {selectedTx && (
+        <TransactionModal tx={selectedTx} onClose={() => setSelectedTx(null)} />
+      )}
+
       <PageHeader
         title="Transaktioner"
         subtitle={`${filtered.length} transaktioner · ${ACCOUNTS.filter(a => a.status === "active").length} konti`}
@@ -79,6 +286,7 @@ export function TransactionsPage() {
         className="animate-fade-up anim-2"
         style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}
       >
+        {/* Search */}
         <div
           style={{
             flex: 1,
@@ -89,7 +297,7 @@ export function TransactionsPage() {
             border: "1px solid var(--border)",
             borderRadius: 8,
             padding: "8px 12px",
-            maxWidth: 320,
+            maxWidth: 280,
           }}
         >
           <Search size={13} color="var(--text-muted)" />
@@ -122,6 +330,53 @@ export function TransactionsPage() {
             <option key={a.id} value={a.id}>{a.institution} — {a.accountName}</option>
           ))}
         </select>
+
+        {/* Category filter */}
+        <select
+          value={filterCategory}
+          onChange={e => setFilterCategory(e.target.value)}
+          style={{
+            background: "var(--surface-1)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            padding: "8px 12px",
+            color: "var(--text-primary)",
+            fontSize: 13,
+            fontFamily: "inherit",
+            cursor: "pointer",
+            outline: "none",
+          }}
+        >
+          <option value="all">Alle kategorier</option>
+          {ALL_CATEGORIES.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+
+        {/* Clear filters */}
+        {hasFilters && (
+          <button
+            onClick={() => { setSearch(""); setFilterAccount("all"); setFilterCategory("all"); }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "8px 12px",
+              background: "none",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              fontSize: 12.5,
+              color: "var(--text-muted)",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "color 100ms",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = "var(--text-primary)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}
+          >
+            <X size={12} /> Ryd filtre
+          </button>
+        )}
       </div>
 
       {/* Transaction groups */}
@@ -163,6 +418,10 @@ export function TransactionsPage() {
                   return (
                     <div
                       key={tx.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedTx(tx)}
+                      onKeyDown={e => e.key === "Enter" && setSelectedTx(tx)}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -170,6 +429,8 @@ export function TransactionsPage() {
                         padding: "12px 18px",
                         borderBottom: i < txs.length - 1 ? "1px solid var(--border)" : "none",
                         transition: "background 100ms",
+                        cursor: "pointer",
+                        outline: "none",
                       }}
                       onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.background = "var(--hover-bg)")}
                       onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.background = "transparent")}
