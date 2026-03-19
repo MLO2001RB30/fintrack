@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { TrendingUp, TrendingDown, Plus, RefreshCw } from "lucide-react";
 import { HOLDINGS, formatDKK, formatPct, toBaseDKKOere, EUR_DKK, USD_DKK, type Holding } from "@/lib/mock-data";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { MerchantLogo } from "@/components/ui/merchant-logo";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
@@ -184,26 +185,34 @@ export function InvestmentsPage() {
 
       {/* KPI row */}
       <div className="animate-fade-up anim-1 grid-invest" style={{ marginBottom: 24 }}>
-        <div style={{ background: "rgba(13,147,115,0.07)", border: "1px solid rgba(13,147,115,0.20)", borderRadius: 12, padding: "18px 20px", position: "relative", overflow: "hidden" }}>
+        <div className="card-hover" style={{ background: "rgba(13,147,115,0.07)", border: "1px solid rgba(13,147,115,0.20)", borderRadius: 12, padding: "18px 20px", position: "relative", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, var(--accent), transparent)" }} />
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Samlet portefølje</div>
-          <div className="num" style={{ fontSize: 26, fontWeight: 600, color: "var(--accent)", letterSpacing: "-0.03em" }}>{formatDKK(totalPortfolio)}</div>
+          <div className="num" style={{ fontSize: 26, fontWeight: 600, color: "var(--accent)", letterSpacing: "-0.03em" }}>
+            <AnimatedNumber value={totalPortfolio} format={n => formatDKK(Math.round(n))} delay={80} />
+          </div>
           <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>{HOLDINGS.length} beholdninger</div>
         </div>
 
-        <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "18px 20px" }}>
+        <div className="card-hover" style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "18px 20px", boxShadow: "var(--shadow-sm)" }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Urealiseret gevinst</div>
           <div className="num" style={{ fontSize: 26, fontWeight: 600, color: totalPnl >= 0 ? "var(--green)" : "var(--red)", letterSpacing: "-0.03em" }}>
-            {totalPnl >= 0 ? "+" : ""}{formatDKK(totalPnl)}
+            <AnimatedNumber
+              value={totalPnl}
+              format={n => `${n >= 0 ? "+" : ""}${formatDKK(Math.round(n))}`}
+              delay={140}
+            />
           </div>
           <div className="num" style={{ fontSize: 12, color: totalPnl >= 0 ? "var(--green)" : "var(--red)", marginTop: 3 }}>
             {formatPct(totalPnlPct)} samlet
           </div>
         </div>
 
-        <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "18px 20px" }}>
+        <div className="card-hover" style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "18px 20px", boxShadow: "var(--shadow-sm)" }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Kostpris</div>
-          <div className="num" style={{ fontSize: 26, fontWeight: 600, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>{formatDKK(totalCostBase)}</div>
+          <div className="num" style={{ fontSize: 26, fontWeight: 600, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>
+            <AnimatedNumber value={totalCostBase} format={n => formatDKK(Math.round(n))} delay={200} />
+          </div>
           <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>Samlet investeret</div>
         </div>
 

@@ -1,19 +1,39 @@
 "use client";
 
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { AnimatedNumber } from "./animated-number";
 
 interface KpiCardProps {
   label: string;
   value: string;
+  // Optional: provide rawValue + formatFn for the count-up animation.
+  // formatFn receives the animating number and should return a formatted string.
+  rawValue?: number;
+  formatFn?: (n: number) => string;
+  // Optional stagger delay (ms) so cards in a row count up with an offset
+  animDelay?: number;
   change?: string;
   changePositive?: boolean;
   sub?: string;
   accent?: boolean;
 }
 
-export function KpiCard({ label, value, change, changePositive, sub, accent }: KpiCardProps) {
+export function KpiCard({
+  label,
+  value,
+  rawValue,
+  formatFn,
+  animDelay = 0,
+  change,
+  changePositive,
+  sub,
+  accent,
+}: KpiCardProps) {
+  const canAnimate = rawValue !== undefined && formatFn !== undefined;
+
   return (
     <div
+      className={`card-hover${accent ? " kpi-accent-pulse" : ""}`}
       style={{
         background: accent ? "var(--accent)" : "var(--surface-1)",
         border: accent ? "none" : "1px solid var(--border)",
@@ -54,7 +74,15 @@ export function KpiCard({ label, value, change, changePositive, sub, accent }: K
           marginTop: 2,
         }}
       >
-        {value}
+        {canAnimate ? (
+          <AnimatedNumber
+            value={rawValue!}
+            format={formatFn!}
+            delay={animDelay}
+          />
+        ) : (
+          value
+        )}
       </span>
 
       {(change || sub) && (

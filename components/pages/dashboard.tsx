@@ -215,6 +215,9 @@ export function Dashboard() {
         <KpiCard
           label="Samlet formue"
           value={formatDKK(NET_WORTH_NOW.total)}
+          rawValue={NET_WORTH_NOW.total}
+          formatFn={n => formatDKK(Math.round(n))}
+          animDelay={80}
           change={`${formatChange(NET_WORTH_CHANGE)} (${formatPct(NET_WORTH_PCT)})`}
           changePositive={up}
           sub="seneste 90 dage"
@@ -223,16 +226,25 @@ export function Dashboard() {
         <KpiCard
           label="Bankkonti"
           value={formatDKK(totalBank)}
+          rawValue={totalBank}
+          formatFn={n => formatDKK(Math.round(n))}
+          animDelay={140}
           sub={`${ACCOUNTS.filter(a => a.status === "active").length} konti tilsluttet`}
         />
         <KpiCard
           label="Investeringer"
           value={formatDKK(totalInvestments)}
+          rawValue={totalInvestments}
+          formatFn={n => formatDKK(Math.round(n))}
+          animDelay={200}
           sub={`${HOLDINGS.length} beholdninger`}
         />
         <KpiCard
           label="Månedligt abonnementsforbrug"
           value={formatDKK(MONTHLY_BURN)}
+          rawValue={MONTHLY_BURN}
+          formatFn={n => formatDKK(Math.round(n))}
+          animDelay={260}
           sub={`${SUBSCRIPTIONS.filter(s => s.status === "active").length} aktive abonnementer`}
         />
       </div>
@@ -395,15 +407,15 @@ export function Dashboard() {
                       <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 2 }}>/md</span>
                     </div>
                     {/* Mini bar */}
-                    <div style={{ height: 3, background: "var(--surface-3)", borderRadius: 2, marginTop: 2 }}>
+                    <div style={{ height: 3, background: "var(--surface-3)", borderRadius: 2, marginTop: 2, overflow: "hidden" }}>
                       <div
+                        className="progress-bar-animated"
                         style={{
-                          height: "100%",
-                          width: `${pct}%`,
+                          "--target-w": `${pct}%`,
+                          "--bar-delay": `${350 + i * 60}ms`,
                           background: "var(--accent)",
-                          borderRadius: 2,
                           opacity: 0.7,
-                        }}
+                        } as React.CSSProperties}
                       />
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{pct.toFixed(0)}% af forbrug</div>

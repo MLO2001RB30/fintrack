@@ -52,6 +52,7 @@ function TransactionModal({ tx, onClose }: { tx: Transaction; onClose: () => voi
 
   return (
     <div
+      className="animate-backdrop-in"
       onClick={handleBackdrop}
       style={{
         position: "fixed",
@@ -66,7 +67,7 @@ function TransactionModal({ tx, onClose }: { tx: Transaction; onClose: () => voi
       }}
     >
       <div
-        className="modal-sheet"
+        className="modal-sheet animate-modal-in"
         style={{
           background: "var(--surface-1)",
           border: "1px solid var(--border)",

@@ -210,6 +210,7 @@ function ConnectCard({ onOpen }: { onOpen: () => void }) {
 function ConnectModal({ onClose }: { onClose: () => void }) {
   return (
     <div
+      className="animate-backdrop-in"
       style={{
         position: "fixed",
         inset: 0,
@@ -224,7 +225,7 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="modal-sheet"
+        className="modal-sheet animate-modal-in"
         style={{
           background: "var(--surface-1)",
           border: "1px solid var(--border-strong)",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
   BarChart,
   Bar,
@@ -138,25 +139,25 @@ export function SpendingPage() {
 
       {/* Summary KPIs */}
       <div className="animate-fade-up anim-1 grid-3" style={{ marginBottom: 24 }}>
-        <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
+        <div className="card-hover" style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px", boxShadow: "var(--shadow-sm)" }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
             Samlet forbrug
           </div>
           <div className="num" style={{ fontSize: 22, fontWeight: 600, color: "var(--red)", letterSpacing: "-0.02em" }}>
-            {formatDKK(grandTotal)}
+            <AnimatedNumber value={grandTotal} format={n => formatDKK(Math.round(n))} delay={80} />
           </div>
           <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>viste periode</div>
         </div>
-        <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
+        <div className="card-hover" style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px", boxShadow: "var(--shadow-sm)" }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
             Kategorier
           </div>
           <div className="num" style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
-            {byCategory.length}
+            <AnimatedNumber value={byCategory.length} format={n => `${Math.round(n)}`} delay={140} />
           </div>
           <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>udgiftskategorier</div>
         </div>
-        <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
+        <div className="card-hover" style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px", boxShadow: "var(--shadow-sm)" }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
             Største udgiftspost
           </div>
@@ -283,14 +284,14 @@ export function SpendingPage() {
                     {/* Progress bar */}
                     <div style={{ width: 80, height: 4, background: "var(--surface-3)", borderRadius: 2, overflow: "hidden" }}>
                       <div
+                        className="progress-bar-animated"
                         style={{
-                          width: `${pct}%`,
-                          height: "100%",
+                          "--target-w": `${pct}%`,
+                          "--bar-delay": `${200 + i * 35}ms`,
                           background: categoryColor(row.category),
-                          borderRadius: 2,
                           opacity: drillCategory && drillCategory !== row.category ? 0.3 : 1,
                           transition: "opacity 150ms",
-                        }}
+                        } as React.CSSProperties}
                       />
                     </div>
                     <span style={{ fontSize: 11.5, color: "var(--text-muted)", width: 32, textAlign: "right" }}>
@@ -308,7 +309,7 @@ export function SpendingPage() {
 
         {/* Drill-down panel */}
         {drillCategory && (
-          <Card>
+          <Card className="animate-slide-right">
             <CardHeader>
               <div>
                 <CardTitle>{drillCategory}</CardTitle>

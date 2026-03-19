@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Search, ArrowUpDown, ExternalLink, ChevronDown, CreditCard, RefreshCw } from "lucide-react";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
   SUBSCRIPTIONS,
   MONTHLY_BURN,
@@ -96,25 +97,27 @@ export function SubscriptionsPage() {
       {/* Burn summary */}
       <div className="animate-fade-up anim-1 grid-4" style={{ marginBottom: 24 }}>
         {[
-          { label: "Månedligt forbrug", value: formatDKK(activeMonthly), sub: "aktive abonnementer" },
-          { label: "Årligt forbrug", value: formatDKK(annualBurn), sub: "estimeret" },
-          { label: "Aktive", value: `${SUBSCRIPTIONS.filter(s => s.status === "active").length}`, sub: "abonnementer" },
-          { label: "På pause / Annullerede", value: `${SUBSCRIPTIONS.filter(s => s.status !== "active").length}`, sub: "abonnementer" },
+          { label: "Månedligt forbrug", rawValue: activeMonthly, format: (n: number) => formatDKK(Math.round(n)), sub: "aktive abonnementer", delay: 80 },
+          { label: "Årligt forbrug", rawValue: annualBurn, format: (n: number) => formatDKK(Math.round(n)), sub: "estimeret", delay: 140 },
+          { label: "Aktive", rawValue: SUBSCRIPTIONS.filter(s => s.status === "active").length, format: (n: number) => `${Math.round(n)}`, sub: "abonnementer", delay: 200 },
+          { label: "På pause / Annullerede", rawValue: SUBSCRIPTIONS.filter(s => s.status !== "active").length, format: (n: number) => `${Math.round(n)}`, sub: "abonnementer", delay: 260 },
         ].map(s => (
           <div
             key={s.label}
+            className="card-hover"
             style={{
               background: "var(--surface-1)",
               border: "1px solid var(--border)",
               borderRadius: 12,
               padding: "16px 18px",
+              boxShadow: "var(--shadow-sm)",
             }}
           >
             <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
               {s.label}
             </div>
             <div className="num" style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
-              {s.value}
+              <AnimatedNumber value={s.rawValue} format={s.format} delay={s.delay} />
             </div>
             <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>{s.sub}</div>
           </div>
@@ -143,11 +146,15 @@ export function SubscriptionsPage() {
                   <div
                     key={sub.id}
                     title={`${sub.merchant}: ${formatDKK(monthlyEquivalent(sub))}/md`}
+                    className="progress-bar-animated"
                     style={{
-                      flex: `0 0 ${pct}%`,
+                      "--target-w": `${pct}%`,
+                      "--bar-delay": `${150 + i * 30}ms`,
+                      flexShrink: 0,
                       background: `hsl(${hue},65%,58%)`,
                       transition: "opacity 150ms",
-                    }}
+                      borderRadius: 0,
+                    } as React.CSSProperties}
                     onMouseEnter={e => (e.currentTarget.style.opacity = "0.7")}
                     onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
                   />
