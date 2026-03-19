@@ -148,6 +148,296 @@ export const MONTHLY_BURN = SUBSCRIPTIONS
   .filter(s => s.status === "active")
   .reduce((sum, s) => sum + monthlyEquivalent(s), 0);
 
+// ─── Cash Flow Planning ───────────────────────────────────────────────────────
+
+export const MOCK_TODAY = "2026-03-18";
+
+export interface CashFlowEvent {
+  id: string;
+  label: string;
+  merchant: string;
+  amountOere: number;
+  date: string;
+  type: "income" | "bill" | "subscription";
+  category: string;
+  accountId: string;
+  essential?: boolean;
+}
+
+export const UPCOMING_FIXED_EXPENSES: CashFlowEvent[] = [
+  {
+    id: "bill-rent",
+    label: "Housing",
+    merchant: "Rent",
+    amountOere: -12_500_00,
+    date: "2026-03-29",
+    type: "bill",
+    category: "Housing",
+    accountId: "acc-1",
+    essential: true,
+  },
+  {
+    id: "bill-electricity",
+    label: "Utilities",
+    merchant: "EWII Energi",
+    amountOere: -1_450_00,
+    date: "2026-03-24",
+    type: "bill",
+    category: "Utilities",
+    accountId: "acc-1",
+    essential: true,
+  },
+  {
+    id: "bill-mobile",
+    label: "Phone",
+    merchant: "Telmore",
+    amountOere: -199_00,
+    date: "2026-03-21",
+    type: "bill",
+    category: "Phone",
+    accountId: "acc-1",
+    essential: true,
+  },
+  {
+    id: "bill-internet",
+    label: "Internet",
+    merchant: "Hiper",
+    amountOere: -329_00,
+    date: "2026-03-26",
+    type: "bill",
+    category: "Internet",
+    accountId: "acc-1",
+    essential: true,
+  },
+  {
+    id: "bill-insurance",
+    label: "Insurance",
+    merchant: "Tryg",
+    amountOere: -1_095_00,
+    date: "2026-04-02",
+    type: "bill",
+    category: "Insurance",
+    accountId: "acc-1",
+    essential: true,
+  },
+];
+
+export const UPCOMING_INCOME: CashFlowEvent[] = [
+  {
+    id: "income-salary",
+    label: "Salary",
+    merchant: "Primary employer",
+    amountOere: 42_000_00,
+    date: "2026-03-31",
+    type: "income",
+    category: "Income",
+    accountId: "acc-1",
+  },
+  {
+    id: "income-freelance",
+    label: "Freelance",
+    merchant: "Product design client",
+    amountOere: 6_500_00,
+    date: "2026-04-04",
+    type: "income",
+    category: "Income",
+    accountId: "acc-1",
+  },
+];
+
+export const UPCOMING_SUBSCRIPTION_EVENTS: CashFlowEvent[] = SUBSCRIPTIONS
+  .filter((sub) => sub.status === "active")
+  .map((sub) => ({
+    id: `subscription-${sub.id}`,
+    label: sub.category,
+    merchant: sub.merchant,
+    amountOere: -sub.amountOere,
+    date: sub.nextExpected,
+    type: "subscription" as const,
+    category: sub.category,
+    accountId: sub.accountId,
+    essential: false,
+  }));
+
+export const UPCOMING_CASHFLOW: CashFlowEvent[] = [
+  ...UPCOMING_INCOME,
+  ...UPCOMING_FIXED_EXPENSES,
+  ...UPCOMING_SUBSCRIPTION_EVENTS,
+].sort((a, b) => {
+  if (a.date === b.date) return b.amountOere - a.amountOere;
+  return a.date.localeCompare(b.date);
+});
+
+export function getDaysBetween(fromIso: string, toIso: string): number {
+  const from = new Date(fromIso);
+  const to = new Date(toIso);
+  return Math.ceil((to.getTime() - from.getTime()) / 86_400_000);
+}
+
+export function getUpcomingCashFlow(days: number, fromIso = MOCK_TODAY): CashFlowEvent[] {
+  return UPCOMING_CASHFLOW.filter((event) => {
+    const diff = getDaysBetween(fromIso, event.date);
+    return diff >= 0 && diff <= days;
+  });
+}
+
+export function getCheckingBalanceTotal(): number {
+  return ACCOUNTS.filter((account) => account.status === "active" && account.accountType === "checking")
+    .reduce((sum, account) => sum + account.balanceOere, 0);
+}
+
+export interface CashFlowForecastPoint {
+  date: string;
+  balanceOere: number;
+  deltaOere: number;
+}
+
+export function buildCashFlowForecast(days = 30, startingBalanceOere = getCheckingBalanceTotal()): CashFlowForecastPoint[] {
+  const start = new Date(MOCK_TODAY);
+  const points: CashFlowForecastPoint[] = [];
+  let balanceOere = startingBalanceOere;
+
+  for (let offset = 0; offset <= days; offset += 1) {
+    const current = new Date(start);
+    current.setDate(start.getDate() + offset);
+    const date = current.toISOString().slice(0, 10);
+
+    const deltaOere = UPCOMING_CASHFLOW
+      .filter((event) => event.date === date)
+      .reduce((sum, event) => sum + event.amountOere, 0);
+
+    balanceOere += deltaOere;
+
+    points.push({
+      date,
+      balanceOere,
+      deltaOere,
+    });
+  }
+
+  return points;
+}
+
+// ─── Planning ────────────────────────────────────────────────────────────────
+
+export interface Budget {
+  id: string;
+  category: string;
+  monthlyLimitOere: number;
+  essential?: boolean;
+}
+
+export const BUDGETS: Budget[] = [
+  { id: "budget-groceries", category: "Groceries", monthlyLimitOere: 450_000, essential: true },
+  { id: "budget-transport", category: "Transport", monthlyLimitOere: 180_000, essential: true },
+  { id: "budget-food", category: "Food", monthlyLimitOere: 220_000 },
+  { id: "budget-shopping", category: "Shopping", monthlyLimitOere: 250_000 },
+  { id: "budget-entertainment", category: "Entertainment", monthlyLimitOere: 160_000 },
+  { id: "budget-utilities", category: "Utilities", monthlyLimitOere: 220_000, essential: true },
+  { id: "budget-health", category: "Health", monthlyLimitOere: 150_000, essential: true },
+  { id: "budget-subscriptions", category: "Subscriptions", monthlyLimitOere: 180_000 },
+];
+
+export interface Goal {
+  id: string;
+  name: string;
+  targetOere: number;
+  currentOere: number;
+  monthlyContributionOere: number;
+  targetDate: string;
+  theme: "cash" | "safety" | "investing";
+}
+
+export const GOALS: Goal[] = [
+  {
+    id: "goal-emergency-fund",
+    name: "Emergency fund",
+    targetOere: 150_000_00,
+    currentOere: 83_000_00,
+    monthlyContributionOere: 6_000_00,
+    targetDate: "2027-02-01",
+    theme: "safety",
+  },
+  {
+    id: "goal-summer-trip",
+    name: "Summer trip",
+    targetOere: 24_000_00,
+    currentOere: 9_500_00,
+    monthlyContributionOere: 2_500_00,
+    targetDate: "2026-07-01",
+    theme: "cash",
+  },
+  {
+    id: "goal-invest-more",
+    name: "Annual investing target",
+    targetOere: 60_000_00,
+    currentOere: 18_000_00,
+    monthlyContributionOere: 4_000_00,
+    targetDate: "2026-12-31",
+    theme: "investing",
+  },
+];
+
+// ─── Review queues ───────────────────────────────────────────────────────────
+
+export interface ReviewItem {
+  id: string;
+  title: string;
+  description: string;
+  type: "subscription" | "transaction" | "account" | "merchant";
+  severity: "high" | "medium" | "low";
+  href: string;
+  cta: string;
+}
+
+export const REVIEW_ITEMS: ReviewItem[] = [
+  {
+    id: "review-lunar",
+    title: "Genopret Lunar-forbindelsen",
+    description: "Forbindelsen er udløbet, så forecast og seneste poster er mindre troværdige.",
+    type: "account",
+    severity: "high",
+    href: "/accounts?focus=reconnect&account=acc-4",
+    cta: "Genopret",
+  },
+  {
+    id: "review-adobe",
+    title: "Vurder Adobe CC",
+    description: "Adobe CC er din dyreste faste post og bør have en aktiv beslutning bag sig.",
+    type: "subscription",
+    severity: "high",
+    href: "/subscriptions",
+    cta: "Åbn",
+  },
+  {
+    id: "review-disney",
+    title: "Afklar Disney+",
+    description: "Bekræft om den fortsat skal stå som pausede faste omkostninger eller helt fjernes.",
+    type: "subscription",
+    severity: "medium",
+    href: "/subscriptions",
+    cta: "Gennemgå",
+  },
+  {
+    id: "review-zalando",
+    title: "Tjek større køb hos Zalando",
+    description: "Det er månedens største ikke-faste køb og et godt sted at afklare om kategoriseringen er rigtig.",
+    type: "transaction",
+    severity: "medium",
+    href: "/transactions?review=merchant&merchant=Zalando",
+    cta: "Undersøg",
+  },
+  {
+    id: "review-transfer",
+    title: "Afklar interne overførsler",
+    description: "Overførsler til opsparing bør skjules fra forbrugsvisningen, når de er bekræftet som interne.",
+    type: "merchant",
+    severity: "low",
+    href: "/transactions?review=transfer",
+    cta: "Tjek",
+  },
+];
+
 // ─── Transactions ─────────────────────────────────────────────────────────────
 
 export interface Transaction {

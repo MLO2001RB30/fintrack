@@ -11,12 +11,12 @@ export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
         <h1
           style={{
             fontFamily: "var(--font-display)",
-            fontSize: 26,
-            fontWeight: 700,
+            fontSize: 32,
+            fontWeight: 600,
             color: "var(--text-primary)",
             margin: 0,
-            lineHeight: 1.15,
-            letterSpacing: "-0.04em",
+            lineHeight: 1.1,
+            letterSpacing: "-0.035em",
           }}
         >
           {title}
@@ -24,8 +24,8 @@ export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
         {subtitle && (
           <p
             style={{
-              margin: "5px 0 0",
-              fontSize: 13.5,
+              margin: "6px 0 0",
+              fontSize: 14,
               color: "var(--text-muted)",
               fontWeight: 400,
               letterSpacing: "-0.01em",

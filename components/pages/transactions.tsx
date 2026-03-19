@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Search, ArrowLeftRight, RefreshCw, X, Tag } from "lucide-react";
 import { TRANSACTIONS, ACCOUNTS, formatDKK, type Transaction } from "@/lib/mock-data";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MerchantLogo } from "@/components/ui/merchant-logo";
@@ -230,14 +229,25 @@ const ALL_CATEGORIES = Array.from(new Set(TRANSACTIONS.map(t => t.category))).so
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export function TransactionsPage() {
-  const [search, setSearch] = useState("");
+export function TransactionsPage({
+  initialReviewMode = null,
+  initialReviewMerchant = null,
+}: {
+  initialReviewMode?: string | null;
+  initialReviewMerchant?: string | null;
+}) {
+  const reviewMode = initialReviewMode;
+  const reviewMerchant = initialReviewMerchant;
+  const [search, setSearch] = useState(reviewMerchant ?? "");
   const [filterAccount, setFilterAccount] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [hideInternalTransfers, setHideInternalTransfers] = useState(false);
+  const [reviewStatus, setReviewStatus] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let txs = [...TRANSACTIONS];
+    if (hideInternalTransfers) txs = txs.filter(t => t.category !== "Transfer");
     if (search) txs = txs.filter(t =>
       t.merchant.toLowerCase().includes(search.toLowerCase()) ||
       t.category.toLowerCase().includes(search.toLowerCase())
@@ -245,7 +255,7 @@ export function TransactionsPage() {
     if (filterAccount !== "all") txs = txs.filter(t => t.accountId === filterAccount);
     if (filterCategory !== "all") txs = txs.filter(t => t.category === filterCategory);
     return txs.sort((a, b) => b.date.localeCompare(a.date));
-  }, [search, filterAccount, filterCategory]);
+  }, [search, filterAccount, filterCategory, hideInternalTransfers]);
 
   const groups = groupByDate(filtered);
   const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
@@ -254,6 +264,12 @@ export function TransactionsPage() {
   const totalOut = filtered.filter(t => t.amountOere < 0).reduce((s, t) => s + t.amountOere, 0);
 
   const hasFilters = search || filterAccount !== "all" || filterCategory !== "all";
+  const reviewCandidates =
+    reviewMode === "transfer"
+      ? TRANSACTIONS.filter((transaction) => transaction.category === "Transfer")
+      : reviewMerchant
+      ? TRANSACTIONS.filter((transaction) => transaction.merchant === reviewMerchant)
+      : [];
 
   return (
     <div className="page-wrap">
@@ -265,6 +281,138 @@ export function TransactionsPage() {
         title="Transaktioner"
         subtitle={`${filtered.length} transaktioner · ${ACCOUNTS.filter(a => a.status === "active").length} konti`}
       />
+
+      {(reviewMode || reviewStatus) && (
+        <Card className="animate-fade-up anim-1" style={{ marginBottom: 20, padding: 18 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                Gennemgang
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 6 }}>
+                {reviewMode === "transfer"
+                  ? "Tjek interne overførsler"
+                  : reviewMerchant
+                  ? `Tjek merchant: ${reviewMerchant}`
+                  : "Gennemgå poster"}
+              </div>
+              <div style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55, maxWidth: 680 }}>
+                {reviewMode === "transfer"
+                  ? "Bekræft om overførsler skal behandles som intern bevægelse og skjules fra denne visning."
+                  : reviewMerchant
+                  ? "Fokuser på den valgte merchant og bekræft om købet skal undersøges nærmere."
+                  : "Gennemgå de transaktioner der kræver opmærksomhed."}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--text-muted)" }}>
+                {reviewCandidates.length} matchende transaktion{reviewCandidates.length === 1 ? "" : "er"}
+              </div>
+              {reviewStatus ? (
+                <div style={{ marginTop: 10, fontSize: 12, color: "var(--green)" }}>{reviewStatus}</div>
+              ) : null}
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Link
+                href="/transactions"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "8px 12px",
+                  background: "var(--surface-1)",
+                  border: "1px solid var(--border-strong)",
+                  borderRadius: 8,
+                  fontSize: 12.5,
+                  color: "var(--text-primary)",
+                  boxShadow: "var(--shadow-sm)",
+                  textDecoration: "none",
+                }}
+              >
+                Luk gennemgang
+              </Link>
+              {reviewMode === "transfer" ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setFilterCategory("Transfer");
+                      setReviewStatus("Transfer-visning aktiveret.");
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      background: "var(--surface-2)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      fontSize: 12.5,
+                      color: "var(--text-secondary)",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Vis overførsler
+                  </button>
+                  <button
+                    onClick={() => {
+                      setHideInternalTransfers(true);
+                      setFilterCategory("all");
+                      setReviewStatus("Interne overførsler skjules nu i denne session.");
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      background: "var(--accent)",
+                      border: "none",
+                      borderRadius: 8,
+                      fontSize: 12.5,
+                      color: "#fff",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Skjul som intern
+                  </button>
+                </>
+              ) : reviewMerchant ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setSearch(reviewMerchant);
+                      setReviewStatus(`${reviewMerchant} er nu fremhævet i søgningen.`);
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      background: "var(--surface-2)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      fontSize: 12.5,
+                      color: "var(--text-secondary)",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Behold filter
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (reviewCandidates[0]) setSelectedTx(reviewCandidates[0]);
+                      setReviewStatus("Åbner den mest relevante transaktion til nærmere gennemgang.");
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      background: "var(--accent)",
+                      border: "none",
+                      borderRadius: 8,
+                      fontSize: 12.5,
+                      color: "#fff",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Åbn bedste match
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Summary */}
       <div className="animate-fade-up anim-1 grid-3" style={{ marginBottom: 24 }}>
@@ -355,7 +503,7 @@ export function TransactionsPage() {
         {/* Clear filters */}
         {hasFilters && (
           <button
-            onClick={() => { setSearch(""); setFilterAccount("all"); setFilterCategory("all"); }}
+            onClick={() => { setSearch(""); setFilterAccount("all"); setFilterCategory("all"); setHideInternalTransfers(false); setReviewStatus(null); }}
             style={{
               display: "flex",
               alignItems: "center",

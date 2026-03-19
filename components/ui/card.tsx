@@ -11,7 +11,7 @@ export function Card({ children, style, className }: CardProps) {
       style={{
         background: "var(--surface-1)",
         border: "1px solid var(--border)",
-        borderRadius: 12,
+        borderRadius: 24,
         boxShadow: "var(--shadow-sm)",
         ...style,
       }}
@@ -31,7 +31,10 @@ export function CardHeader({
   return (
     <div
       style={{
-        padding: "14px 20px",
+        paddingTop: 18,
+        paddingRight: 24,
+        paddingBottom: 18,
+        paddingLeft: 24,
         borderBottom: "1px solid var(--border)",
         display: "flex",
         alignItems: "center",
@@ -48,7 +51,7 @@ export function CardTitle({ children }: { children: React.ReactNode }) {
   return (
     <span
       style={{
-        fontSize: 13.5,
+        fontSize: 14,
         fontWeight: 600,
         color: "var(--text-primary)",
         letterSpacing: "-0.02em",
@@ -68,5 +71,18 @@ export function CardBody({
   style?: React.CSSProperties;
   className?: string;
 }) {
-  return <div className={className} style={{ padding: "16px 20px", ...style }}>{children}</div>;
+  return (
+    <div
+      className={className}
+      style={{
+        paddingTop: 20,
+        paddingRight: 24,
+        paddingBottom: 20,
+        paddingLeft: 24,
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
 }

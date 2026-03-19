@@ -6,22 +6,21 @@ import {
   Cell,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import { TrendingUp, TrendingDown, Plus, RefreshCw } from "lucide-react";
 import { HOLDINGS, formatDKK, formatPct, toBaseDKKOere, EUR_DKK, USD_DKK, type Holding } from "@/lib/mock-data";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { MerchantLogo } from "@/components/ui/merchant-logo";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 
 const ASSET_COLORS: Record<string, string> = {
-  stock:   "#D97706",
-  etf:     "#059669",
-  crypto:  "#7C3AED",
-  pension: "#2563EB",
-  bond:    "#6B7280",
+  stock:   "#C8842C",
+  etf:     "#0D8B5B",
+  crypto:  "#7C68FF",
+  pension: "#4F7CFF",
+  bond:    "#8C8B94",
 };
 
 
@@ -118,7 +117,19 @@ function HoldingRow({ holding }: { holding: Holding }) {
   );
 }
 
-function CustomPieTooltip({ active, payload }: any) {
+type PortfolioSlice = {
+  name: string;
+  value: number;
+  fill: string;
+  pct: number;
+};
+
+type PieTooltipProps = {
+  active?: boolean;
+  payload?: Array<{ name: string; value: number; payload: PortfolioSlice }>;
+};
+
+function CustomPieTooltip({ active, payload }: PieTooltipProps) {
   if (!active || !payload?.length) return null;
   const d = payload[0];
   return (
@@ -185,7 +196,7 @@ export function InvestmentsPage() {
 
       {/* KPI row */}
       <div className="animate-fade-up anim-1 grid-invest" style={{ marginBottom: 24 }}>
-        <div className="card-hover" style={{ background: "rgba(13,147,115,0.07)", border: "1px solid rgba(13,147,115,0.20)", borderRadius: 12, padding: "18px 20px", position: "relative", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
+        <div className="card-hover" style={{ background: "rgba(87,73,244,0.04)", border: "1px solid rgba(87,73,244,0.16)", borderRadius: 24, padding: "18px 20px", position: "relative", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, var(--accent), transparent)" }} />
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Samlet portefølje</div>
           <div className="num" style={{ fontSize: 26, fontWeight: 600, color: "var(--accent)", letterSpacing: "-0.03em" }}>

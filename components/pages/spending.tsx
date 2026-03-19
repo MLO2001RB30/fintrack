@@ -45,8 +45,22 @@ function categoryColor(cat: string): string {
 
 // ─── Custom tooltip ───────────────────────────────────────────────────────────
 
-function BarTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
+type SpendingTooltipProps = {
+  active?: boolean;
+  payload?: Array<{ value: number }>;
+  label?: string;
+};
+
+type CategoryChartClickState = {
+  activePayload?: Array<{
+    payload?: {
+      category?: string;
+    };
+  }>;
+};
+
+function BarTooltip({ active, payload, label }: SpendingTooltipProps) {
+  if (!active || !payload?.length || !label) return null;
   return (
     <div
       style={{
@@ -206,10 +220,12 @@ export function SpendingPage() {
               <BarChart
                 data={byCategory}
                 margin={{ top: 4, right: 8, left: -10, bottom: 60 }}
-                onClick={data => {
-                  if (data?.activePayload?.[0]) {
-                    const cat = data.activePayload[0].payload.category as string;
-                    setDrillCategory(prev => prev === cat ? null : cat);
+                onClick={(data) => {
+                  const activePayload = (data as CategoryChartClickState | undefined)?.activePayload;
+                  const category = activePayload?.[0]?.payload?.category;
+
+                  if (category) {
+                    setDrillCategory((prev) => (prev === category ? null : category));
                   }
                 }}
               >

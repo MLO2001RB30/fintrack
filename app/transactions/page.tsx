@@ -1,10 +1,22 @@
 import { AppShell } from "@/components/app-shell";
 import { TransactionsPage } from "@/components/pages/transactions";
 
-export default function Page() {
+type TransactionsRouteProps = {
+  searchParams: Promise<{
+    review?: string;
+    merchant?: string;
+  }>;
+};
+
+export default async function Page({ searchParams }: TransactionsRouteProps) {
+  const params = await searchParams;
+
   return (
     <AppShell>
-      <TransactionsPage />
+      <TransactionsPage
+        initialReviewMode={params.review ?? null}
+        initialReviewMerchant={params.merchant ?? null}
+      />
     </AppShell>
   );
 }

@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, RefreshCw, Trash2, Download, AlertTriangle, CheckCircle, Shield, Bell, ChevronDown } from "lucide-react";
+import { RefreshCw, Trash2, Download, AlertTriangle, CheckCircle, Shield, ChevronDown } from "lucide-react";
 import { ACCOUNTS } from "@/lib/mock-data";
-import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -82,7 +81,7 @@ export function SettingsPage() {
                     width: 56,
                     height: 56,
                     borderRadius: "50%",
-                    background: "linear-gradient(135deg, #F59E0B, #D97706)",
+                    background: "linear-gradient(135deg, var(--accent), #6E63F7)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -105,9 +104,9 @@ export function SettingsPage() {
                       fontSize: 11,
                       color: "var(--accent)",
                       background: "var(--accent-glow)",
-                      padding: "2px 8px",
-                      borderRadius: 4,
-                      border: "1px solid rgba(245,158,11,0.2)",
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      border: "1px solid rgba(87,73,244,0.16)",
                       marginTop: 4,
                     }}
                   >

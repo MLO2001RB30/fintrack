@@ -1,51 +1,53 @@
-@import url("https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 @theme inline {
-  --color-background:    #F7F8FA;
+  --color-background:    #FFFFFF;
   --color-surface-1:     #FFFFFF;
-  --color-surface-2:     #F3F4F6;
-  --color-surface-3:     #E9EAED;
-  --color-border:        rgba(0, 0, 0, 0.07);
-  --color-border-strong: rgba(0, 0, 0, 0.13);
-  --color-text-primary:  #0A0A0B;
-  --color-text-secondary:#4B5563;
-  --color-text-muted:    #9CA3AF;
-  --color-accent:        #0D9373;
-  --color-accent-dim:    rgba(13, 147, 115, 0.08);
-  --color-green:         #059669;
-  --color-green-dim:     rgba(5, 150, 105, 0.10);
-  --color-red:           #DC2626;
-  --color-red-dim:       rgba(220, 38, 38, 0.10);
-  --color-yellow:        #D97706;
-  --color-yellow-dim:    rgba(217, 119, 6, 0.10);
-  --font-display: "Syne", system-ui, sans-serif;
-  --font-body:    "Manrope", system-ui, sans-serif;
+  --color-surface-2:     #F5F5F5;
+  --color-surface-3:     #E8E8EA;
+  --color-border:        #D9D9DB;
+  --color-border-strong: #C5C5CB;
+  --color-text-primary:  #2A2933;
+  --color-text-secondary:#616167;
+  --color-text-muted:    #939399;
+  --color-accent:        #5749F4;
+  --color-accent-dim:    rgba(87, 73, 244, 0.08);
+  --color-green:         #0D8B5B;
+  --color-green-dim:     rgba(13, 139, 91, 0.10);
+  --color-red:           #CC3314;
+  --color-red-dim:       rgba(204, 51, 20, 0.10);
+  --color-yellow:        #C8842C;
+  --color-yellow-dim:    rgba(200, 132, 44, 0.10);
+  --font-display: "Inter", system-ui, sans-serif;
+  --font-body:    "Inter", system-ui, sans-serif;
   --font-mono:    "JetBrains Mono", "Fira Code", monospace;
 }
 
 :root {
-  --background:     #F7F8FA;
+  --background:     #FFFFFF;
   --surface-1:      #FFFFFF;
-  --surface-2:      #F3F4F6;
-  --surface-3:      #E9EAED;
-  --border:         rgba(0, 0, 0, 0.07);
-  --border-strong:  rgba(0, 0, 0, 0.13);
-  --text-primary:   #0A0A0B;
-  --text-secondary: #4B5563;
-  --text-muted:     #9CA3AF;
-  --accent:         #0D9373;
-  --accent-hover:   #0B7D62;
-  --accent-glow:    rgba(13, 147, 115, 0.08);
-  --green:          #059669;
-  --red:            #DC2626;
-  --yellow:         #D97706;
-  --hover-bg:       rgba(0, 0, 0, 0.025);
-  --hover-bg-md:    rgba(0, 0, 0, 0.05);
-  --shadow-xs:      0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm:      0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md:      0 4px 8px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lg:      0 12px 24px -4px rgba(0, 0, 0, 0.10), 0 4px 8px -4px rgba(0, 0, 0, 0.05);
+  --surface-2:      #F5F5F5;
+  --surface-3:      #E8E8EA;
+  --border:         #D9D9DB;
+  --border-strong:  #C5C5CB;
+  --text-primary:   #2A2933;
+  --text-secondary: #616167;
+  --text-muted:     #939399;
+  --accent:         #5749F4;
+  --accent-hover:   #4B3BE6;
+  --accent-glow:    rgba(87, 73, 244, 0.08);
+  --green:          #0D8B5B;
+  --red:            #CC3314;
+  --yellow:         #C8842C;
+  --hover-bg:       #F5F5F5;
+  --hover-bg-md:    #EFEFF2;
+  --ring:           rgba(87, 73, 244, 0.16);
+  --shadow-xs:      0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-sm:      0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-md:      0 8px 24px rgba(16, 24, 40, 0.08), 0 2px 8px rgba(16, 24, 40, 0.04);
+  --shadow-lg:      0 18px 48px rgba(16, 24, 40, 0.12), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --font-display:   var(--font-inter);
+  --font-body:      var(--font-inter);
 }
 
 * {
@@ -66,14 +68,14 @@ body {
   overflow-x: hidden;
 }
 
-/* Subtle gradient mesh — Stripe-style depth */
+/* Keep the canvas clean and product-like. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 90% 60% at -5% -10%, rgba(13, 147, 115, 0.07) 0%, transparent 55%),
-    radial-gradient(ellipse 60% 50% at 105% 110%, rgba(79, 70, 229, 0.05) 0%, transparent 55%);
+    radial-gradient(ellipse 72% 48% at 100% 0%, rgba(87, 73, 244, 0.045) 0%, transparent 58%),
+    radial-gradient(ellipse 52% 42% at 0% 100%, rgba(17, 24, 39, 0.03) 0%, transparent 62%);
   pointer-events: none;
   z-index: 0;
 }
@@ -145,8 +147,8 @@ body::before {
 
 /* Subtle glow pulse used on accent KPI card */
 @keyframes glowPulse {
-  0%, 100% { box-shadow: 0 4px 12px rgba(13,147,115,0.25), 0 1px 3px rgba(13,147,115,0.15); }
-  50%       { box-shadow: 0 6px 20px rgba(13,147,115,0.38), 0 2px 6px rgba(13,147,115,0.22); }
+  0%, 100% { box-shadow: 0 4px 12px rgba(87,73,244,0.25), 0 1px 3px rgba(87,73,244,0.15); }
+  50%       { box-shadow: 0 6px 20px rgba(87,73,244,0.38), 0 2px 6px rgba(87,73,244,0.22); }
 }
 
 /* Number value pop — subtle scale when a KPI value finishes counting */
@@ -214,9 +216,27 @@ body::before {
 
 /* Page wrapper */
 .page-wrap {
-  padding: 32px 36px;
+  padding: 24px 28px 32px;
   position: relative;
   z-index: 1;
+}
+
+.app-shell {
+  display: flex;
+  height: 100dvh;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  gap: 24px;
+  padding: 24px;
+}
+
+.app-shell-main {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: transparent;
+  min-width: 0;
 }
 
 /* Responsive grids */
@@ -305,6 +325,11 @@ body::before {
 
 /* ─── Mobile breakpoint ──────────────────────────────────── */
 @media (max-width: 640px) {
+  .app-shell {
+    padding: 0;
+    gap: 0;
+  }
+
   /* Page padding — extra bottom space for the mobile nav bar */
   .page-wrap {
     padding: 16px 16px 88px;

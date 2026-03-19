@@ -1,12 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { Building2, AlertTriangle, RefreshCw, Plus, CheckCircle, Zap } from "lucide-react";
 import { ACCOUNTS, formatDKK } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { MerchantLogo } from "@/components/ui/merchant-logo";
-import { useState } from "react";
 
 const BANKS = [
   { id: "DANSKE_BANK_DABADKKK", name: "Danske Bank",          domain: "danskebank.dk", available: true },
@@ -17,7 +17,15 @@ const BANKS = [
   { id: "ARBEJDERNES_LANDSBANK",name: "Arbejdernes Landsbank",domain: "al-bank.dk",    available: true },
 ];
 
-function AccountCard({ account }: { account: (typeof ACCOUNTS)[0] }) {
+function AccountCard({
+  account,
+  onReconnect,
+  onSync,
+}: {
+  account: (typeof ACCOUNTS)[number];
+  onReconnect: (accountId: string) => void;
+  onSync: (accountId: string) => void;
+}) {
   const isExpired = account.status === "expired";
   return (
     <div
@@ -34,7 +42,7 @@ function AccountCard({ account }: { account: (typeof ACCOUNTS)[0] }) {
         transition: "border-color 150ms, box-shadow 150ms",
       }}
       onMouseEnter={e => {
-        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 0 2px rgba(13,147,115,0.15)";
+        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 0 3px var(--ring)";
         (e.currentTarget as HTMLDivElement).style.borderColor = isExpired ? "rgba(239,68,68,0.4)" : "var(--border-strong)";
       }}
       onMouseLeave={e => {
@@ -112,6 +120,7 @@ function AccountCard({ account }: { account: (typeof ACCOUNTS)[0] }) {
         </div>
         {isExpired ? (
           <button
+            onClick={() => onReconnect(account.id)}
             style={{
               display: "flex",
               alignItems: "center",
@@ -130,6 +139,7 @@ function AccountCard({ account }: { account: (typeof ACCOUNTS)[0] }) {
           </button>
         ) : (
           <button
+            onClick={() => onSync(account.id)}
             style={{
               display: "flex",
               alignItems: "center",
@@ -207,7 +217,15 @@ function ConnectCard({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-function ConnectModal({ onClose }: { onClose: () => void }) {
+function ConnectModal({
+  onClose,
+  onConnect,
+  reconnectLabel,
+}: {
+  onClose: () => void;
+  onConnect: (bankName: string) => void;
+  reconnectLabel?: string;
+}) {
   return (
     <div
       className="animate-backdrop-in"
@@ -239,10 +257,12 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
       >
         <div style={{ marginBottom: 20 }}>
           <h2 style={{ margin: "0 0 6px", fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 400, letterSpacing: "-0.02em" }}>
-            Vælg din bank
+            {reconnectLabel ? `Genopret ${reconnectLabel}` : "Vælg din bank"}
           </h2>
           <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>
-            Sikker forbindelse via GoCardless Open Banking (PSD2)
+            {reconnectLabel
+              ? "Genautorisér forbindelsen for at få friske transaktioner og et mere præcist forecast."
+              : "Sikker forbindelse via GoCardless Open Banking (PSD2)"}
           </p>
         </div>
 
@@ -250,6 +270,7 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
           {BANKS.map(bank => (
             <button
               key={bank.id}
+              onClick={() => onConnect(bank.name)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -299,14 +320,58 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function AccountsPage() {
-  const [modal, setModal] = useState(false);
-  const totalBalance = ACCOUNTS.reduce((s, a) => s + a.balanceOere, 0);
-  const activeCount = ACCOUNTS.filter(a => a.status === "active").length;
+export function AccountsPage({ initialReconnectId = null }: { initialReconnectId?: string | null }) {
+  const [accounts, setAccounts] = useState(ACCOUNTS);
+  const [modal, setModal] = useState(Boolean(initialReconnectId));
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [pendingReconnectId, setPendingReconnectId] = useState<string | null>(initialReconnectId);
+
+  const totalBalance = accounts.reduce((s, a) => s + a.balanceOere, 0);
+  const activeCount = accounts.filter(a => a.status === "active").length;
+  const expiredCount = accounts.filter(a => a.status === "expired").length;
+  const pendingReconnectAccount = accounts.find((account) => account.id === pendingReconnectId);
+
+  function openReconnect(accountId: string) {
+    setPendingReconnectId(accountId);
+    setModal(true);
+    setSuccessMessage(null);
+  }
+
+  function handleConnect(bankName: string) {
+    if (pendingReconnectId) {
+      setAccounts((current) =>
+        current.map((account) =>
+          account.id === pendingReconnectId ? { ...account, status: "active", lastSynced: "lige nu" } : account,
+        ),
+      );
+      setSuccessMessage(`${pendingReconnectAccount?.institution ?? bankName} er genoprettet og synkroniseret igen.`);
+    } else {
+      setSuccessMessage(`${bankName} er forbundet i demo-flowet.`);
+    }
+
+    setModal(false);
+    setPendingReconnectId(null);
+  }
+
+  function handleSync(accountId: string) {
+    setAccounts((current) =>
+      current.map((account) => (account.id === accountId ? { ...account, lastSynced: "lige nu" } : account)),
+    );
+    setSuccessMessage("Kontoen er synkroniseret igen.");
+  }
 
   return (
     <div className="page-wrap">
-      {modal && <ConnectModal onClose={() => setModal(false)} />}
+      {modal && (
+        <ConnectModal
+          onClose={() => {
+            setModal(false);
+            setPendingReconnectId(null);
+          }}
+          onConnect={handleConnect}
+          reconnectLabel={pendingReconnectAccount?.institution}
+        />
+      )}
 
       <PageHeader
         title="Bankkonti"
@@ -337,13 +402,58 @@ export function AccountsPage() {
         }
       />
 
+      {pendingReconnectAccount && modal ? (
+        <div
+          className="animate-fade-up anim-1"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "12px 16px",
+            background: "rgba(87,73,244,0.06)",
+            border: "1px solid rgba(87,73,244,0.12)",
+            borderRadius: 18,
+            marginBottom: 20,
+            fontSize: 13,
+            color: "var(--text-secondary)",
+          }}
+        >
+          <RefreshCw size={14} color="var(--accent)" />
+          <span>
+            Du er her for at genoprette <strong style={{ color: "var(--text-primary)" }}>{pendingReconnectAccount.institution}</strong>, så forecast og
+            poster bliver pålidelige igen.
+          </span>
+        </div>
+      ) : null}
+
+      {successMessage ? (
+        <div
+          className="animate-fade-up anim-1"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "12px 16px",
+            background: "rgba(13,139,91,0.08)",
+            border: "1px solid rgba(13,139,91,0.16)",
+            borderRadius: 18,
+            marginBottom: 20,
+            fontSize: 13,
+            color: "var(--green)",
+          }}
+        >
+          <CheckCircle size={14} />
+          <span>{successMessage}</span>
+        </div>
+      ) : null}
+
       {/* Summary bar */}
       <Card className="animate-fade-up anim-1" style={{ marginBottom: 24 }}>
         <CardBody className="accounts-summary">
           {[
             { label: "Samlet saldo", value: formatDKK(totalBalance), highlight: true },
             { label: "Aktive forbindelser", value: `${activeCount}` },
-            { label: "Udløbne forbindelser", value: `${ACCOUNTS.filter(a => a.status === "expired").length}` },
+            { label: "Udløbne forbindelser", value: `${expiredCount}` },
             { label: "Sidst synkroniseret", value: "2 min. siden" },
           ].map(stat => (
             <div key={stat.label} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -375,8 +485,8 @@ export function AccountsPage() {
           gap: 16,
         }}
       >
-        {ACCOUNTS.map(account => (
-          <AccountCard key={account.id} account={account} />
+        {accounts.map(account => (
+          <AccountCard key={account.id} account={account} onReconnect={openReconnect} onSync={handleSync} />
         ))}
         <ConnectCard onOpen={() => setModal(true)} />
       </div>

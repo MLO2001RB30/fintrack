@@ -12,7 +12,9 @@ export function useCountUp(target: number, duration = 1100, delay = 0): number {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setValue(0);
+    rafRef.current = requestAnimationFrame(() => {
+      setValue(0);
+    });
     timerRef.current = setTimeout(() => {
       let startTime: number | null = null;
 

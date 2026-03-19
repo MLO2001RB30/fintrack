@@ -1,428 +1,560 @@
 "use client";
 
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from "recharts";
-import { TrendingUp, TrendingDown, AlertCircle, Calendar, CreditCard } from "lucide-react";
+  AlertCircle,
+  ArrowRight,
+  CalendarClock,
+  CreditCard,
+  ShieldAlert,
+  Sparkles,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
+import Link from "next/link";
 import {
   ACCOUNTS,
-  SUBSCRIPTIONS,
-  NET_WORTH_HISTORY,
-  NET_WORTH_NOW,
-  NET_WORTH_CHANGE,
-  NET_WORTH_PCT,
-  MONTHLY_BURN,
-  formatDKK,
+  BUDGETS,
+  buildCashFlowForecast,
   formatAxisDKK,
   formatChange,
+  formatDKK,
   formatPct,
-  monthlyEquivalent,
-  toBaseDKKOere,
-  HOLDINGS,
-  TOTAL_CASH,
+  getCheckingBalanceTotal,
+  getDaysBetween,
+  getUpcomingCashFlow,
+  GOALS,
+  MOCK_TODAY,
+  NET_WORTH_CHANGE,
+  NET_WORTH_PCT,
+  REVIEW_ITEMS,
+  SUBSCRIPTIONS,
+  TRANSACTIONS,
+  type CashFlowEvent,
+  type CashFlowForecastPoint,
 } from "@/lib/mock-data";
-import { KpiCard } from "@/components/ui/kpi-card";
-import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
+import { KpiCard } from "@/components/ui/kpi-card";
 import { PageHeader } from "@/components/ui/page-header";
-import { MerchantLogo } from "@/components/ui/merchant-logo";
-import Link from "next/link";
 
-// ─── Chart tooltip ────────────────────────────────────────────────────────────
-function CustomTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
+type ForecastTooltipProps = {
+  active?: boolean;
+  payload?: Array<{ payload: CashFlowForecastPoint }>;
+  label?: string;
+};
+
+function formatShortDate(iso: string) {
+  return new Date(iso).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
+}
+
+function formatLongDate(iso: string) {
+  return new Date(iso).toLocaleDateString("da-DK", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function ForecastTooltip({ active, payload, label }: ForecastTooltipProps) {
+  if (!active || !payload?.length || !label) return null;
+
+  const point = payload[0].payload;
+
   return (
     <div
       style={{
         background: "#fff",
         border: "1px solid var(--border)",
-        borderRadius: 10,
-        padding: "12px 16px",
+        borderRadius: 16,
+        padding: "12px 14px",
         boxShadow: "var(--shadow-md)",
       }}
     >
-      <p style={{ margin: "0 0 8px", fontSize: 11, color: "var(--text-muted)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-        {new Date(label).toLocaleDateString("da-DK", { day: "numeric", month: "short" })}
-      </p>
-      <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
-        {formatDKK(d.total)}
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 8 }}>
-        {[
-          { label: "Bank", value: d.bank, color: "#D97706" },
-          { label: "Investments", value: d.investments, color: "#4F46E5" },
-          { label: "Cash", value: d.cash, color: "#059669" },
-        ].map(r => (
-          <div key={r.label} style={{ display: "flex", justifyContent: "space-between", gap: 20, fontSize: 11 }}>
-            <span style={{ color: r.color }}>{r.label}</span>
-            <span style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>{formatDKK(r.value)}</span>
-          </div>
-        ))}
+      <div style={{ marginBottom: 6, fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+        {formatLongDate(label)}
+      </div>
+      <div className="num" style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>
+        {formatDKK(point.balanceOere)}
+      </div>
+      <div style={{ fontSize: 11.5, color: point.deltaOere >= 0 ? "var(--green)" : "var(--red)" }}>
+        {point.deltaOere > 0 ? "+" : ""}
+        {formatDKK(point.deltaOere)} den dag
       </div>
     </div>
   );
 }
 
-// ─── Account row ─────────────────────────────────────────────────────────────
-function AccountRow({ account }: { account: (typeof ACCOUNTS)[0] }) {
+function CashEventRow({ event }: { event: CashFlowEvent }) {
+  const daysAway = getDaysBetween(MOCK_TODAY, event.date);
+  const variant =
+    event.type === "income" ? "active" : event.type === "subscription" ? "monthly" : event.essential ? "paused" : "yearly";
+
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 12,
-        padding: "10px 0",
+        justifyContent: "space-between",
+        gap: 14,
+        padding: "12px 0",
         borderBottom: "1px solid var(--border)",
       }}
     >
-      <MerchantLogo domain={account.domain} merchant={account.institution} size={34} radius={8} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {account.institution}
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 500, color: "var(--text-primary)" }}>{event.merchant}</span>
+          <Badge variant={variant} size="sm">
+            {event.type === "income" ? "Indkomst" : event.type === "subscription" ? "Abonnement" : event.label}
+          </Badge>
         </div>
-        <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{account.accountName}</div>
+        <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+          {formatLongDate(event.date)} · {daysAway === 0 ? "i dag" : daysAway === 1 ? "i morgen" : `om ${daysAway} dage`}
+        </div>
       </div>
-      <div style={{ textAlign: "right" }}>
-        <div className="num" style={{ fontSize: 13.5, fontWeight: 500, color: "var(--text-primary)" }}>
-          {formatDKK(account.balanceOere)}
-        </div>
-        {account.status === "expired" ? (
-          <div style={{ fontSize: 11, color: "var(--red)", display: "flex", alignItems: "center", gap: 3, justifyContent: "flex-end" }}>
-            <AlertCircle size={10} /> Expired
-          </div>
-        ) : (
-          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{account.lastSynced}</div>
-        )}
+      <div className="num" style={{ fontSize: 13.5, fontWeight: 600, color: event.amountOere > 0 ? "var(--green)" : "var(--text-primary)" }}>
+        {event.amountOere > 0 ? "+" : ""}
+        {formatDKK(event.amountOere)}
       </div>
     </div>
   );
 }
 
-// ─── Subscription row ─────────────────────────────────────────────────────────
-function SubRow({ sub }: { sub: (typeof SUBSCRIPTIONS)[0] }) {
-  const monthly = monthlyEquivalent(sub);
+function QuickJump({
+  href,
+  eyebrow,
+  title,
+  description,
+}: {
+  href: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+}) {
   return (
-    <div
+    <Link
+      href={href}
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "9px 0",
-        borderBottom: "1px solid var(--border)",
+        display: "block",
+        textDecoration: "none",
+        background: "var(--surface-2)",
+        border: "1px solid var(--border)",
+        borderRadius: 18,
+        padding: "16px 18px",
       }}
     >
-      <MerchantLogo domain={sub.domain} merchant={sub.merchant} size={32} radius={8} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)" }}>{sub.merchant}</div>
-        <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{sub.category}</div>
-      </div>
-      <div style={{ textAlign: "right" }}>
-        <div className="num" style={{ fontSize: 13.5, fontWeight: 500, color: "var(--text-primary)" }}>
-          {formatDKK(monthly)}<span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 2 }}>/md</span>
+      <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>{eyebrow}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{title}</div>
+          <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.5 }}>{description}</div>
         </div>
-        <Badge variant={sub.cadence} size="sm">
-          {sub.cadence === "monthly" ? "Månedlig" : sub.cadence === "quarterly" ? "Kvartalsvis" : "Årlig"}
-        </Badge>
+        <ArrowRight size={15} color="var(--accent)" />
       </div>
-    </div>
+    </Link>
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
 export function Dashboard() {
-  const topSubs = [...SUBSCRIPTIONS]
-    .filter(s => s.status === "active")
-    .sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a))
-    .slice(0, 5);
-
-  const totalInvestments = HOLDINGS.reduce(
-    (sum, h) => sum + toBaseDKKOere(h.currentPriceMinor * h.quantity, h.currency),
-    0
+  const today = new Date(MOCK_TODAY);
+  const activeAccounts = ACCOUNTS.filter((account) => account.status === "active");
+  const expiredAccounts = ACCOUNTS.filter((account) => account.status === "expired");
+  const checkingBalance = getCheckingBalanceTotal();
+  const forecast = buildCashFlowForecast(21);
+  const projectedThreeWeeks = forecast[forecast.length - 1]?.balanceOere ?? checkingBalance;
+  const forecastLowPoint = forecast.reduce((lowest, point) =>
+    point.balanceOere < lowest.balanceOere ? point : lowest,
   );
-  const totalBank = ACCOUNTS.filter(a => a.status === "active").reduce((s, a) => s + a.balanceOere, 0);
-  const up = NET_WORTH_CHANGE >= 0;
+  const upcoming7Days = getUpcomingCashFlow(7);
+  const upcoming14Days = getUpcomingCashFlow(14);
+  const next7DayOutflows = upcoming7Days
+    .filter((event) => event.amountOere < 0)
+    .reduce((sum, event) => sum + Math.abs(event.amountOere), 0);
+  const next14DayIncome = upcoming14Days
+    .filter((event) => event.amountOere > 0)
+    .reduce((sum, event) => sum + event.amountOere, 0);
+  const next14DayOutflows = upcoming14Days
+    .filter((event) => event.amountOere < 0)
+    .reduce((sum, event) => sum + Math.abs(event.amountOere), 0);
+  const emergencyBuffer = 25_000_00;
+  const safeToSpend = Math.max(checkingBalance + next14DayIncome - next14DayOutflows - emergencyBuffer, 0);
+  const reviewCount = REVIEW_ITEMS.length;
+  const recurringToVerify = SUBSCRIPTIONS.filter((subscription) => subscription.confidence < 0.97 || subscription.status !== "active");
+  const highestSubscription = [...SUBSCRIPTIONS]
+    .filter((subscription) => subscription.status === "active")
+    .sort((a, b) => b.amountOere - a.amountOere)[0];
+  const expenseTransactions = TRANSACTIONS.filter(
+    (transaction) => transaction.amountOere < 0 && transaction.category !== "Transfer",
+  );
+  const topCategory = Object.entries(
+    expenseTransactions.reduce<Record<string, number>>((acc, transaction) => {
+      const key = transaction.isSubscription ? "Subscriptions" : transaction.category;
+      acc[key] = (acc[key] ?? 0) + Math.abs(transaction.amountOere);
+      return acc;
+    }, {}),
+  ).sort((a, b) => b[1] - a[1])[0];
+  const monthPrefix = MOCK_TODAY.slice(0, 7);
+  const monthlyExpenses = TRANSACTIONS.filter(
+    (transaction) => transaction.date.startsWith(monthPrefix) && transaction.amountOere < 0 && transaction.category !== "Transfer",
+  );
+  const totalBudgetLimit = BUDGETS.reduce((sum, budget) => sum + budget.monthlyLimitOere, 0);
+  const spentAgainstBudget = monthlyExpenses.reduce((sum, transaction) => sum + Math.abs(transaction.amountOere), 0);
+  const goalContribution = GOALS.reduce((sum, goal) => sum + goal.monthlyContributionOere, 0);
+  const weekdayLabel = today.toLocaleDateString("da-DK", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const forecastChart = forecast.filter((_, index) => index % 2 === 0 || index === forecast.length - 1);
+  const netWorthUp = NET_WORTH_CHANGE >= 0;
 
-  // Chart data — show weekly labels
-  const chartData = NET_WORTH_HISTORY.filter((_, i) => i % 3 === 0);
-
-  const expiredAccounts = ACCOUNTS.filter(a => a.status === "expired");
+  const priorities = [
+    ...(expiredAccounts.length > 0
+      ? [
+          {
+            icon: <ShieldAlert size={16} />,
+            title: `${expiredAccounts.length} forbindelse${expiredAccounts.length > 1 ? "r" : ""} kræver handling`,
+            description: `${expiredAccounts.map((account) => account.institution).join(", ")} er udløbet og svækker dit daglige cash view.`,
+            href: "/review",
+            cta: "Åbn",
+          },
+        ]
+      : []),
+    {
+      icon: <CalendarClock size={16} />,
+      title: `${formatDKK(next7DayOutflows)} går ud de næste 7 dage`,
+      description: "Tjek at lønkontoen kan bære de planlagte træk, før de rammer.",
+      href: "/plan",
+      cta: "Se plan",
+    },
+    {
+      icon: <CreditCard size={16} />,
+      title: highestSubscription ? `${highestSubscription.merchant} er stadig tungeste abonnement` : "Ingen abonnementer kræver fokus",
+      description: highestSubscription
+        ? `${formatDKK(highestSubscription.amountOere)}/md er den største faste post at udfordre.`
+        : "Din recurring stack ser slank ud lige nu.",
+      href: "/review",
+      cta: "Gennemgå",
+    },
+  ].slice(0, 3);
 
   return (
     <div className="page-wrap">
       <PageHeader
-        title="Dashboard"
-        subtitle={`${new Date().toLocaleDateString("da-DK", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`}
+        title="Overblik"
+        subtitle={`Det vigtigste lige nu pr. ${weekdayLabel}`}
         action={
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: 6,
-              padding: "7px 14px",
+              padding: "8px 14px",
               background: "var(--surface-2)",
               border: "1px solid var(--border)",
-              borderRadius: 8,
+              borderRadius: 999,
               fontSize: 12.5,
-              color: "var(--text-muted)",
-              cursor: "default",
+              color: "var(--text-secondary)",
               userSelect: "none",
-              opacity: 0.8,
             }}
-            title="Datofiltrering kommer snart"
+            title="Hurtigt dagligt fokus med næste skridt"
           >
-            <Calendar size={13} />
-            Seneste 90 dage
+            <Sparkles size={13} />
+            Fokus i dag
           </div>
         }
       />
 
-      {/* Expired account banner */}
-      {expiredAccounts.length > 0 && (
+      {expiredAccounts.length > 0 ? (
         <div
           className="animate-fade-up anim-1"
           style={{
             display: "flex",
             alignItems: "center",
             gap: 10,
-            padding: "10px 16px",
-            background: "rgba(239,68,68,0.08)",
-            border: "1px solid rgba(239,68,68,0.22)",
-            borderRadius: 10,
+            padding: "12px 16px",
+            background: "rgba(204,51,20,0.08)",
+            border: "1px solid rgba(204,51,20,0.16)",
+            borderRadius: 18,
             marginBottom: 24,
             fontSize: 13,
-            color: "#F87171",
+            color: "var(--red)",
           }}
         >
           <AlertCircle size={14} />
           <span>
-            <strong>{expiredAccounts.map(a => a.institution).join(", ")}</strong> — bankforbindelsen er udløbet.{" "}
-            <Link href="/accounts" style={{ color: "var(--accent)", textDecoration: "underline" }}>
-              Genopret forbindelsen
-            </Link>
+            <strong>{expiredAccounts.map((account) => account.institution).join(", ")}</strong> er udløbet. Gennemgå bør være første stop, før du
+            stoler helt på forecastet.
           </span>
         </div>
-      )}
+      ) : null}
 
-      {/* KPI row */}
       <div className="animate-fade-up anim-2 grid-4" style={{ marginBottom: 24 }}>
         <KpiCard
-          label="Samlet formue"
-          value={formatDKK(NET_WORTH_NOW.total)}
-          rawValue={NET_WORTH_NOW.total}
-          formatFn={n => formatDKK(Math.round(n))}
-          animDelay={80}
-          change={`${formatChange(NET_WORTH_CHANGE)} (${formatPct(NET_WORTH_PCT)})`}
-          changePositive={up}
-          sub="seneste 90 dage"
+          label="Trygt at bruge"
+          value={formatDKK(safeToSpend)}
+          rawValue={safeToSpend}
+          formatFn={(value) => formatDKK(Math.round(value))}
+          sub={`buffer på ${formatDKK(emergencyBuffer)}`}
           accent
         />
         <KpiCard
-          label="Bankkonti"
-          value={formatDKK(totalBank)}
-          rawValue={totalBank}
-          formatFn={n => formatDKK(Math.round(n))}
-          animDelay={140}
-          sub={`${ACCOUNTS.filter(a => a.status === "active").length} konti tilsluttet`}
+          label="Næste 7 dage"
+          value={formatDKK(next7DayOutflows)}
+          rawValue={next7DayOutflows}
+          formatFn={(value) => formatDKK(Math.round(value))}
+          sub={`${upcoming7Days.filter((event) => event.amountOere < 0).length} planlagte træk`}
         />
         <KpiCard
-          label="Investeringer"
-          value={formatDKK(totalInvestments)}
-          rawValue={totalInvestments}
-          formatFn={n => formatDKK(Math.round(n))}
-          animDelay={200}
-          sub={`${HOLDINGS.length} beholdninger`}
+          label="Formuetrend"
+          value={formatChange(NET_WORTH_CHANGE)}
+          rawValue={NET_WORTH_CHANGE}
+          formatFn={(value) => formatChange(Math.round(value))}
+          sub={formatPct(NET_WORTH_PCT)}
         />
         <KpiCard
-          label="Månedligt abonnementsforbrug"
-          value={formatDKK(MONTHLY_BURN)}
-          rawValue={MONTHLY_BURN}
-          formatFn={n => formatDKK(Math.round(n))}
-          animDelay={260}
-          sub={`${SUBSCRIPTIONS.filter(s => s.status === "active").length} aktive abonnementer`}
+          label="Kø at rydde"
+          value={`${reviewCount}`}
+          rawValue={reviewCount}
+          formatFn={(value) => `${Math.round(value)}`}
+          sub={`${recurringToVerify.length} recurring checks`}
         />
       </div>
 
-      {/* Net worth chart + accounts */}
-      <div className="animate-fade-up anim-3 grid-main">
-        {/* Chart */}
+      <div className="animate-fade-up anim-3 grid-main" style={{ marginBottom: 24 }}>
         <Card>
           <CardHeader>
-            <CardTitle>Formueudvikling</CardTitle>
+            <div>
+              <CardTitle>Start her</CardTitle>
+              <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
+                De få ting der flytter mest de næste dage.
+              </div>
+            </div>
+          </CardHeader>
+          <CardBody style={{ paddingTop: 4, paddingBottom: 4 }}>
+            {priorities.map((item) => (
+              <div
+                key={item.title}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 12,
+                  padding: "14px 0",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 12,
+                    background: "var(--surface-2)",
+                    border: "1px solid var(--border)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "var(--text-secondary)",
+                    flexShrink: 0,
+                  }}
+                >
+                  {item.icon}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>{item.title}</div>
+                  <div style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>{item.description}</div>
+                </div>
+                <Link
+                  href={item.href}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: 12.5,
+                    color: "var(--accent)",
+                    textDecoration: "none",
+                    flexShrink: 0,
+                  }}
+                >
+                  {item.cta} <ArrowRight size={12} />
+                </Link>
+              </div>
+            ))}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Næste bevægelser</CardTitle>
+              <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
+                Hvad der rammer kontoen først den kommende uge.
+              </div>
+            </div>
+            <Link href="/plan" style={{ fontSize: 12.5, color: "var(--accent)", textDecoration: "none" }}>
+              Se plan →
+            </Link>
+          </CardHeader>
+          <CardBody style={{ paddingTop: 4, paddingBottom: 4 }}>
+            {upcoming7Days.slice(0, 5).map((event) => (
+              <CashEventRow key={event.id} event={event} />
+            ))}
+          </CardBody>
+        </Card>
+      </div>
+
+      <div className="animate-fade-up anim-4" style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 16, marginBottom: 24 }}>
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Likviditet næste 3 uger</CardTitle>
+              <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
+                Et kort forecast, så du ser lavpunktet før det bliver et problem.
+              </div>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {up ? <TrendingUp size={13} color="var(--green)" /> : <TrendingDown size={13} color="var(--red)" />}
-              <span className="num" style={{ fontSize: 12, color: up ? "var(--green)" : "var(--red)" }}>
-                {formatChange(NET_WORTH_CHANGE)} ({formatPct(NET_WORTH_PCT)})
+              <Wallet size={13} color="var(--accent)" />
+              <span className="num" style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>
+                {formatDKK(projectedThreeWeeks)}
               </span>
             </div>
           </CardHeader>
           <CardBody style={{ paddingTop: 8 }}>
-            <ResponsiveContainer width="100%" height={240} className="chart-tall">
-              <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={250} className="chart-tall">
+              <AreaChart data={forecastChart} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0D9373" stopOpacity={0.15} />
-                    <stop offset="100%" stopColor="#0D9373" stopOpacity={0} />
+                  <linearGradient id="homeForecastFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#5749F4" stopOpacity={0.18} />
+                    <stop offset="100%" stopColor="#5749F4" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="rgba(0,0,0,0.05)"
-                  vertical={false}
-                />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
                 <XAxis
                   dataKey="date"
-                  tickFormatter={d => new Date(d).toLocaleDateString("da-DK", { day: "numeric", month: "short" })}
+                  tickFormatter={formatShortDate}
                   tick={{ fontSize: 10.5, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
                   axisLine={false}
                   tickLine={false}
-                  interval={7}
                 />
                 <YAxis
-                  tickFormatter={v => formatAxisDKK(v)}
+                  tickFormatter={formatAxisDKK}
                   tick={{ fontSize: 10.5, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
                   axisLine={false}
                   tickLine={false}
-                  domain={["auto", "auto"]}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<ForecastTooltip />} />
                 <Area
                   type="monotone"
-                  dataKey="total"
-                  stroke="#0D9373"
-                  strokeWidth={2}
-                  fill="url(#gradTotal)"
+                  dataKey="balanceOere"
+                  stroke="#5749F4"
+                  strokeWidth={2.5}
+                  fill="url(#homeForecastFill)"
                   dot={false}
-                  activeDot={{ r: 4, fill: "#0D9373", stroke: "var(--surface-1)", strokeWidth: 2 }}
+                  activeDot={{ r: 4, fill: "#5749F4", stroke: "var(--surface-1)", strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
+
+            <div className="grid-3" style={{ marginTop: 16 }}>
+              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "14px 16px" }}>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Lavpunkt</div>
+                <div className="num" style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}>
+                  {formatDKK(forecastLowPoint.balanceOere)}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-secondary)" }}>{formatLongDate(forecastLowPoint.date)}</div>
+              </div>
+              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "14px 16px" }}>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Største kategori</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}>{topCategory?.[0] ?? "Ingen data"}</div>
+                <div className="num" style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-secondary)" }}>
+                  {topCategory ? formatDKK(topCategory[1]) : "—"}
+                </div>
+              </div>
+              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "14px 16px" }}>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Datadækning</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: activeAccounts.length === ACCOUNTS.length ? "var(--green)" : "var(--text-primary)" }}>
+                  {activeAccounts.length}/{ACCOUNTS.length} aktive
+                </div>
+                <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-secondary)" }}>
+                  {expiredAccounts.length > 0 ? `${expiredAccounts.length} skal reconnectes` : "Alle feeds er sunde"}
+                </div>
+              </div>
+            </div>
           </CardBody>
         </Card>
 
-        {/* Accounts */}
         <Card>
           <CardHeader>
-            <CardTitle>Bankkonti</CardTitle>
-            <Link href="/accounts" style={{ fontSize: 12, color: "var(--accent)", textDecoration: "none" }}>
-              Se alle →
-            </Link>
-          </CardHeader>
-          <CardBody style={{ paddingTop: 4, paddingBottom: 4 }}>
-            {ACCOUNTS.map(a => (
-              <AccountRow key={a.id} account={a} />
-            ))}
-            <div
-              className="num"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "10px 0 2px",
-                fontSize: 12,
-                fontWeight: 600,
-                color: "var(--text-secondary)",
-              }}
-            >
-              <span>Aktive konti</span>
-              <span>{formatDKK(ACCOUNTS.filter(a => a.status === "active").reduce((s, a) => s + a.balanceOere, 0))}</span>
-            </div>
-            {ACCOUNTS.some(a => a.status === "expired") && (
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "var(--text-muted)",
-                  padding: "0 0 6px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <AlertCircle size={10} color="var(--red)" />
-                  <span style={{ color: "var(--red)" }}>
-                    {ACCOUNTS.filter(a => a.status === "expired").map(a => a.institution).join(", ")} (udløbet — ikke medregnet)
-                  </span>
-                </span>
-                <span style={{ color: "var(--text-muted)" }}>
-                  {formatDKK(ACCOUNTS.filter(a => a.status === "expired").reduce((s, a) => s + a.balanceOere, 0))}
-                </span>
+            <div>
+              <CardTitle>Vælg næste arbejdsspor</CardTitle>
+              <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
+                Gå videre til planlægning eller oprydning, ikke flere dashboards oven på hinanden.
               </div>
-            )}
+            </div>
+          </CardHeader>
+          <CardBody style={{ display: "grid", gap: 14 }}>
+            <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <Target size={14} color="var(--text-muted)" />
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>Plan lige nu</span>
+              </div>
+              <div className="num" style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
+                {formatDKK(Math.max(totalBudgetLimit - spentAgainstBudget, 0))}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>
+                {formatPct((spentAgainstBudget / totalBudgetLimit) * 100)} af budgettet er brugt · {formatDKK(goalContribution)}/md går til mål.
+              </div>
+              <Link href="/plan" style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, color: "var(--accent)", textDecoration: "none", fontSize: 12.5 }}>
+                Åbn plan <ArrowRight size={12} />
+              </Link>
+            </div>
+
+            <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                {netWorthUp ? <TrendingUp size={14} color="var(--green)" /> : <TrendingDown size={14} color="var(--red)" />}
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>Gennemgå lige nu</span>
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>{reviewCount} ting venter</div>
+              <div style={{ marginTop: 6, fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>
+                {recurringToVerify.length} abonnementer skal vurderes, og {expiredAccounts.length} konto{expiredAccounts.length === 1 ? "" : "er"} skal tjekkes.
+              </div>
+              <Link href="/review" style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, color: "var(--accent)", textDecoration: "none", fontSize: 12.5 }}>
+                Åbn gennemgang <ArrowRight size={12} />
+              </Link>
+            </div>
           </CardBody>
         </Card>
       </div>
 
-      {/* Subscriptions */}
-      <div className="animate-fade-up anim-4">
+      <div className="animate-fade-up anim-5">
         <Card>
           <CardHeader>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <CreditCard size={14} color="var(--text-muted)" />
-              <CardTitle>Top abonnementer</CardTitle>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Total:{" "}
-                <span className="num" style={{ color: "var(--accent)", fontWeight: 600 }}>
-                  {formatDKK(MONTHLY_BURN)}/md
-                </span>
-              </div>
-              <Link href="/subscriptions" style={{ fontSize: 12, color: "var(--accent)", textDecoration: "none" }}>
-                Se alle →
-              </Link>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Sparkles size={14} color="var(--text-muted)" />
+              <CardTitle>Gå dybere</CardTitle>
             </div>
           </CardHeader>
-          <CardBody style={{ padding: 0 }}>
-            <div className="subs-grid">
-              {topSubs.map((sub, i) => {
-                const monthly = monthlyEquivalent(sub);
-                const pct = (monthly / MONTHLY_BURN) * 100;
-                return (
-                  <Link
-                    key={sub.id}
-                    href={`/subscriptions#${sub.id}`}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 6,
-                      padding: "16px 20px",
-                      textDecoration: "none",
-                      borderRight: "1px solid var(--border)",
-                      transition: "background 120ms",
-                    }}
-                    onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.background = "var(--hover-bg)")}
-                    onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.background = "transparent")}
-                  >
-                    <MerchantLogo domain={sub.domain} merchant={sub.merchant} size={36} radius={9} />
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)" }}>
-                      {sub.merchant}
-                    </div>
-                    <div className="num" style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>
-                      {formatDKK(monthly)}
-                      <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 2 }}>/md</span>
-                    </div>
-                    {/* Mini bar */}
-                    <div style={{ height: 3, background: "var(--surface-3)", borderRadius: 2, marginTop: 2, overflow: "hidden" }}>
-                      <div
-                        className="progress-bar-animated"
-                        style={{
-                          "--target-w": `${pct}%`,
-                          "--bar-delay": `${350 + i * 60}ms`,
-                          background: "var(--accent)",
-                          opacity: 0.7,
-                        } as React.CSSProperties}
-                      />
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{pct.toFixed(0)}% af forbrug</div>
-                  </Link>
-                );
-              })}
-            </div>
+          <CardBody className="grid-3">
+            <QuickJump
+              href="/plan"
+              eyebrow="Planlæg"
+              title="Arbejd med likviditet og budget"
+              description="Gå til månedens beslutninger uden støj fra oprydningsopgaver."
+            />
+            <QuickJump
+              href="/review"
+              eyebrow="Ryd op"
+              title="Gennemgå det der kræver tillid"
+              description="Abonnementer, merchants og forbindelser samlet i én arbejdsflade."
+            />
+            <QuickJump
+              href="/transactions"
+              eyebrow="Undersøg"
+              title="Se de konkrete posteringer"
+              description="Brug den rå liste, når noget i overblikket ser forkert eller usikkert ud."
+            />
           </CardBody>
         </Card>
       </div>

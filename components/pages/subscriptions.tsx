@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, ArrowUpDown, ExternalLink, ChevronDown, CreditCard, RefreshCw } from "lucide-react";
+import { Search, ArrowUpDown, ExternalLink, CreditCard, RefreshCw } from "lucide-react";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
+  MOCK_TODAY,
   SUBSCRIPTIONS,
-  MONTHLY_BURN,
   formatDKK,
+  getDaysBetween,
   monthlyEquivalent,
-  type Subscription,
 } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
@@ -24,7 +24,7 @@ function formatDate(iso: string) {
 }
 
 function daysUntil(iso: string) {
-  const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+  const diff = getDaysBetween(MOCK_TODAY, iso);
   if (diff < 0) return "Overskredet";
   if (diff === 0) return "I dag";
   if (diff === 1) return "I morgen";
@@ -256,7 +256,7 @@ export function SubscriptionsPage() {
                     key={col.key ?? col.label}
                     style={{
                       padding: "12px 20px",
-                      textAlign: (col as any).align ?? "left",
+                      textAlign: col.align ?? "left",
                       width: col.width,
                       fontWeight: 500,
                     }}
@@ -398,7 +398,7 @@ export function SubscriptionsPage() {
       {/* Footnote explaining Opsig availability */}
       <div style={{ marginTop: 12, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
         <strong style={{ color: "var(--text-secondary)" }}>Om opsigelseslinks:</strong>{" "}
-        "Opsig"-knappen vises kun for udbydere, hvor FinTrack kender det direkte link til opsigelsessiden.
+        &quot;Opsig&quot;-knappen vises kun for udbydere, hvor FinTrack kender det direkte link til opsigelsessiden.
         For øvrige abonnementer skal du manuelt logge ind hos udbyderen for at opsige.
       </div>
     </div>

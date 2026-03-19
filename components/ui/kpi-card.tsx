@@ -30,32 +30,32 @@ export function KpiCard({
   accent,
 }: KpiCardProps) {
   const canAnimate = rawValue !== undefined && formatFn !== undefined;
+  const metaColor = accent ? "var(--accent)" : "var(--text-muted)";
+  const cardBackground = accent ? "rgba(87,73,244,0.04)" : "var(--surface-2)";
+  const cardBorder = accent ? "rgba(87,73,244,0.16)" : "var(--border)";
 
   return (
     <div
-      className={`card-hover${accent ? " kpi-accent-pulse" : ""}`}
+      className="card-hover"
       style={{
-        background: accent ? "var(--accent)" : "var(--surface-1)",
-        border: accent ? "none" : "1px solid var(--border)",
-        borderRadius: 12,
-        padding: "18px 20px",
+        background: cardBackground,
+        border: `1px solid ${cardBorder}`,
+        borderRadius: 24,
+        padding: "20px 22px",
         display: "flex",
         flexDirection: "column",
-        gap: 4,
+        gap: 10,
         position: "relative",
         overflow: "hidden",
-        boxShadow: accent
-          ? "0 4px 12px rgba(13,147,115,0.25), 0 1px 3px rgba(13,147,115,0.15)"
-          : "var(--shadow-sm)",
+        boxShadow: "var(--shadow-sm)",
       }}
     >
       <span
         style={{
-          fontSize: 10.5,
-          fontWeight: 600,
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          color: accent ? "rgba(255,255,255,0.65)" : "var(--text-muted)",
+          fontSize: 11,
+          fontWeight: 500,
+          letterSpacing: "-0.01em",
+          color: metaColor,
           display: "block",
         }}
       >
@@ -65,13 +65,12 @@ export function KpiCard({
       <span
         className="num"
         style={{
-          fontSize: 26,
-          fontWeight: 700,
-          color: accent ? "#fff" : "var(--text-primary)",
+          fontSize: 34,
+          fontWeight: 500,
+          color: "var(--text-primary)",
           lineHeight: 1.1,
-          letterSpacing: "-0.035em",
+          letterSpacing: "-0.04em",
           display: "block",
-          marginTop: 2,
         }}
       >
         {canAnimate ? (
@@ -90,27 +89,31 @@ export function KpiCard({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 4,
-            marginTop: 4,
+            gap: 6,
+            marginTop: "auto",
+            flexWrap: "wrap",
           }}
         >
           {change && (
             <>
               {changePositive ? (
-                <TrendingUp size={11} color={accent ? "rgba(255,255,255,0.8)" : "var(--green)"} />
+                <TrendingUp size={11} color={accent ? "var(--accent)" : "var(--green)"} />
               ) : (
-                <TrendingDown size={11} color={accent ? "rgba(255,255,255,0.8)" : "var(--red)"} />
+                <TrendingDown size={11} color={accent ? "var(--accent)" : "var(--red)"} />
               )}
               <span
-                className="num"
                 style={{
-                  fontSize: 12,
+                  fontSize: 11.5,
                   fontWeight: 500,
                   color: accent
-                    ? "rgba(255,255,255,0.85)"
+                    ? "var(--accent)"
                     : changePositive
                     ? "var(--green)"
                     : "var(--red)",
+                  background: accent ? "rgba(87,73,244,0.08)" : "var(--surface-1)",
+                  border: `1px solid ${accent ? "rgba(87,73,244,0.12)" : "var(--border)"}`,
+                  borderRadius: 999,
+                  padding: "4px 10px",
                 }}
               >
                 {change}
@@ -121,7 +124,11 @@ export function KpiCard({
             <span
               style={{
                 fontSize: 11.5,
-                color: accent ? "rgba(255,255,255,0.65)" : "var(--text-muted)",
+                color: "var(--text-secondary)",
+                background: "var(--surface-1)",
+                border: "1px solid var(--border)",
+                borderRadius: 999,
+                padding: "4px 10px",
               }}
             >
               {sub}
