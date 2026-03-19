@@ -1,6 +1,6 @@
 "use client";
 
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   AlertCircle,
   ArrowRight,
@@ -122,40 +122,6 @@ function CashEventRow({ event }: { event: CashFlowEvent }) {
   );
 }
 
-function QuickJump({
-  href,
-  eyebrow,
-  title,
-  description,
-}: {
-  href: string;
-  eyebrow: string;
-  title: string;
-  description: string;
-}) {
-  return (
-    <Link
-      href={href}
-      style={{
-        display: "block",
-        textDecoration: "none",
-        background: "var(--surface-2)",
-        border: "1px solid var(--border)",
-        borderRadius: 18,
-        padding: "16px 18px",
-      }}
-    >
-      <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>{eyebrow}</div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{title}</div>
-          <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.5 }}>{description}</div>
-        </div>
-        <ArrowRight size={15} color="var(--accent)" />
-      </div>
-    </Link>
-  );
-}
 
 export function Dashboard() {
   const today = new Date(MOCK_TODAY);
@@ -208,7 +174,13 @@ export function Dashboard() {
     month: "long",
     year: "numeric",
   });
-  const forecastChart = forecast.filter((_, index) => index % 2 === 0 || index === forecast.length - 1);
+  const forecastChart = forecast.filter((_, index, arr) =>
+    index % 2 === 0 || index === arr.length - 1 || forecast[index] === forecastLowPoint,
+  );
+  const monthlyIncome = TRANSACTIONS
+    .filter((t) => t.date.startsWith(monthPrefix) && t.amountOere > 0)
+    .reduce((sum, t) => sum + t.amountOere, 0);
+  const monthlyNet = monthlyIncome - spentAgainstBudget;
   const netWorthUp = NET_WORTH_CHANGE >= 0;
 
   const priorities = [
@@ -274,7 +246,8 @@ export function Dashboard() {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 10,
+            justifyContent: "space-between",
+            gap: 12,
             padding: "12px 16px",
             background: "rgba(204,51,20,0.08)",
             border: "1px solid rgba(204,51,20,0.16)",
@@ -284,11 +257,28 @@ export function Dashboard() {
             color: "var(--red)",
           }}
         >
-          <AlertCircle size={14} />
-          <span>
-            <strong>{expiredAccounts.map((account) => account.institution).join(", ")}</strong> er udløbet. Gennemgå bør være første stop, før du
-            stoler helt på forecastet.
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <AlertCircle size={14} flexShrink={0} />
+            <span>
+              <strong>{expiredAccounts.map((account) => account.institution).join(", ")}</strong> er udløbet — tal og forecast nedenfor er ufuldstændige.
+            </span>
+          </div>
+          <Link
+            href={`/accounts?focus=reconnect&account=${expiredAccounts[0]?.id}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 12.5,
+              fontWeight: 600,
+              color: "var(--red)",
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            }}
+          >
+            Genopret <ArrowRight size={11} />
+          </Link>
         </div>
       ) : null}
 
@@ -313,14 +303,14 @@ export function Dashboard() {
           value={formatChange(NET_WORTH_CHANGE)}
           rawValue={NET_WORTH_CHANGE}
           formatFn={(value) => formatChange(Math.round(value))}
-          sub={formatPct(NET_WORTH_PCT)}
+          sub={`${formatPct(NET_WORTH_PCT)} · 90 dage`}
         />
         <KpiCard
-          label="Kø at rydde"
+          label="Opgaver at rydde"
           value={`${reviewCount}`}
           rawValue={reviewCount}
           formatFn={(value) => `${Math.round(value)}`}
-          sub={`${recurringToVerify.length} recurring checks`}
+          sub={`${recurringToVerify.length} abonnementer at tjekke`}
         />
       </div>
 
@@ -390,15 +380,15 @@ export function Dashboard() {
             <div>
               <CardTitle>Næste bevægelser</CardTitle>
               <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Hvad der rammer kontoen først den kommende uge.
+                Næste 14 dage · {upcoming14Days.filter(e => e.amountOere < 0).length} træk, {upcoming14Days.filter(e => e.amountOere > 0).length} indbetalinger
               </div>
             </div>
-            <Link href="/plan" style={{ fontSize: 12.5, color: "var(--accent)", textDecoration: "none" }}>
-              Se plan →
+            <Link href="/plan" style={{ fontSize: 12.5, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap" }}>
+              Se alle →
             </Link>
           </CardHeader>
           <CardBody style={{ paddingTop: 4, paddingBottom: 4 }}>
-            {upcoming7Days.slice(0, 5).map((event) => (
+            {upcoming14Days.slice(0, 6).map((event) => (
               <CashEventRow key={event.id} event={event} />
             ))}
           </CardBody>
@@ -416,9 +406,12 @@ export function Dashboard() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Wallet size={13} color="var(--accent)" />
-              <span className="num" style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>
-                {formatDKK(projectedThreeWeeks)}
-              </span>
+              <div style={{ textAlign: "right" }}>
+                <span className="num" style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>
+                  {formatDKK(projectedThreeWeeks)}
+                </span>
+                <div style={{ fontSize: 10, color: "var(--text-muted)" }}>om 21 dage</div>
+              </div>
             </div>
           </CardHeader>
           <CardBody style={{ paddingTop: 8 }}>
@@ -443,8 +436,26 @@ export function Dashboard() {
                   tick={{ fontSize: 10.5, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
                   axisLine={false}
                   tickLine={false}
+                  domain={[
+                    (min: number) => Math.round(min * 0.9),
+                    (max: number) => Math.round(max * 1.04),
+                  ]}
                 />
                 <Tooltip content={<ForecastTooltip />} />
+                <ReferenceLine
+                  x={MOCK_TODAY}
+                  stroke="var(--text-muted)"
+                  strokeDasharray="4 3"
+                  strokeWidth={1.5}
+                />
+                <ReferenceDot
+                  x={forecastLowPoint.date}
+                  y={forecastLowPoint.balanceOere}
+                  r={5}
+                  fill="var(--red)"
+                  stroke="var(--surface-1)"
+                  strokeWidth={2}
+                />
                 <Area
                   type="monotone"
                   dataKey="balanceOere"
@@ -490,7 +501,7 @@ export function Dashboard() {
             <div>
               <CardTitle>Vælg næste arbejdsspor</CardTitle>
               <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Gå videre til planlægning eller oprydning, ikke flere dashboards oven på hinanden.
+                Sæt retning — åbn et dedikeret arbejdsspor og gå i dybden.
               </div>
             </div>
           </CardHeader>
@@ -501,10 +512,10 @@ export function Dashboard() {
                 <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>Plan lige nu</span>
               </div>
               <div className="num" style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
-                {formatDKK(Math.max(totalBudgetLimit - spentAgainstBudget, 0))}
+                {formatDKK(Math.max(totalBudgetLimit - spentAgainstBudget, 0))} tilbage
               </div>
               <div style={{ marginTop: 6, fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>
-                {((spentAgainstBudget / totalBudgetLimit) * 100).toFixed(1)}% af budgettet er brugt · {formatDKK(goalContribution)}/md går til mål.
+                {((spentAgainstBudget / totalBudgetLimit) * 100).toFixed(1)}% af {formatDKK(totalBudgetLimit)} brugt · {formatDKK(goalContribution)}/md til mål
               </div>
               <Link href="/plan" style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, color: "var(--accent)", textDecoration: "none", fontSize: 12.5 }}>
                 Åbn plan <ArrowRight size={12} />
@@ -531,30 +542,43 @@ export function Dashboard() {
       <div className="animate-fade-up anim-5">
         <Card>
           <CardHeader>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Sparkles size={14} color="var(--text-muted)" />
-              <CardTitle>Gå dybere</CardTitle>
+            <div>
+              <CardTitle>
+                {new Date(MOCK_TODAY).toLocaleDateString("da-DK", { month: "long" })} i tal
+              </CardTitle>
+              <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
+                Hvad der er gået ind og ud på kontiene indtil nu denne måned.
+              </div>
             </div>
+            <span
+              className="num"
+              style={{ fontSize: 13, fontWeight: 600, color: monthlyNet >= 0 ? "var(--green)" : "var(--red)", whiteSpace: "nowrap" }}
+            >
+              {monthlyNet >= 0 ? "+" : ""}{formatDKK(monthlyNet)} netto
+            </span>
           </CardHeader>
           <CardBody className="grid-3">
-            <QuickJump
-              href="/plan"
-              eyebrow="Planlæg"
-              title="Arbejd med likviditet og budget"
-              description="Gå til månedens beslutninger uden støj fra oprydningsopgaver."
-            />
-            <QuickJump
-              href="/review"
-              eyebrow="Ryd op"
-              title="Gennemgå det der kræver tillid"
-              description="Abonnementer, merchants og forbindelser samlet i én arbejdsflade."
-            />
-            <QuickJump
-              href="/transactions"
-              eyebrow="Undersøg"
-              title="Se de konkrete posteringer"
-              description="Brug den rå liste, når noget i overblikket ser forkert eller usikkert ud."
-            />
+            <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "16px 18px" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Indkomst</div>
+              <div className="num" style={{ fontSize: 20, fontWeight: 600, color: "var(--green)" }}>+{formatDKK(monthlyIncome)}</div>
+              <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)" }}>
+                {TRANSACTIONS.filter(t => t.date.startsWith(monthPrefix) && t.amountOere > 0).length} indbetalinger
+              </div>
+            </div>
+            <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "16px 18px" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Udgifter</div>
+              <div className="num" style={{ fontSize: 20, fontWeight: 600, color: "var(--text-primary)" }}>{formatDKK(spentAgainstBudget)}</div>
+              <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)" }}>
+                {monthlyExpenses.length} posteringer
+              </div>
+            </div>
+            <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "16px 18px" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Til mål</div>
+              <div className="num" style={{ fontSize: 20, fontWeight: 600, color: "var(--text-primary)" }}>{formatDKK(goalContribution)}</div>
+              <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)" }}>
+                {GOALS.length} aktive mål
+              </div>
+            </div>
           </CardBody>
         </Card>
       </div>
