@@ -600,7 +600,7 @@ export function MobileNav() {
                         ) : null}
                       </span>
                       <span style={{ flex: 1, fontSize: 14, fontWeight: active ? 600 : 450 }}>{label}</span>
-                      <ArrowRight />
+                      <ArrowRight size={14} />
                     </Link>
                   </div>
                 );

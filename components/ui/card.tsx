@@ -1,6 +1,8 @@
+import type { ReactNode, CSSProperties } from "react";
+
 interface CardProps {
-  children: React.ReactNode;
-  style?: React.CSSProperties;
+  children: ReactNode;
+  style?: CSSProperties;
   className?: string;
 }
 
@@ -25,8 +27,8 @@ export function CardHeader({
   children,
   style,
 }: {
-  children: React.ReactNode;
-  style?: React.CSSProperties;
+  children: ReactNode;
+  style?: CSSProperties;
 }) {
   return (
     <div
@@ -47,7 +49,7 @@ export function CardHeader({
   );
 }
 
-export function CardTitle({ children }: { children: React.ReactNode }) {
+export function CardTitle({ children }: { children: ReactNode }) {
   return (
     <span
       style={{
@@ -67,8 +69,8 @@ export function CardBody({
   style,
   className,
 }: {
-  children: React.ReactNode;
-  style?: React.CSSProperties;
+  children: ReactNode;
+  style?: CSSProperties;
   className?: string;
 }) {
   return (

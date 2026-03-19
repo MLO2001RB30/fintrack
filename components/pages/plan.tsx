@@ -196,7 +196,7 @@ export function PlanPage() {
           value={formatDKK(totalBudgetLeft)}
           rawValue={totalBudgetLeft}
           formatFn={(value) => formatDKK(Math.round(value))}
-          sub={`${formatPct((spentThisMonth / totalBudgetLimit) * 100)} brugt`}
+          sub={`${((spentThisMonth / totalBudgetLimit) * 100).toFixed(1)}% brugt`}
         />
         <KpiCard
           label="Kommende træk"
@@ -385,7 +385,7 @@ export function PlanPage() {
                     />
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 6, fontSize: 11.5, color: "var(--text-muted)" }}>
-                    <span>{overBudget ? "Over budget" : `${formatPct(row.ratio * 100)} brugt`}</span>
+                    <span>{overBudget ? "Over budget" : `${(row.ratio * 100).toFixed(1)}% brugt`}</span>
                     <span>{formatDKK(Math.max(row.limit - row.spent, 0))} tilbage</span>
                   </div>
                 </div>

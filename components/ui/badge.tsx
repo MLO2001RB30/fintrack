@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
+
 interface BadgeProps {
   variant: "active" | "paused" | "cancelled" | "expired" | "error" | "monthly" | "quarterly" | "yearly" | "checking" | "savings" | "credit" | "stock" | "etf" | "crypto" | "pension" | "bond";
-  children: React.ReactNode;
+  children: ReactNode;
   size?: "sm" | "md";
 }
 
