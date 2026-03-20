@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useMemo } from "react";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
@@ -14,6 +15,8 @@ import {
 } from "recharts";
 import { ChevronLeft, PieChart as PieIcon } from "lucide-react";
 import { TRANSACTIONS, formatDKK, formatAxisDKK, type Transaction } from "@/lib/mock-data";
+import { FIGMA_METRIC_FONT_STACK } from "@/lib/typography";
+import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { MerchantLogo } from "@/components/ui/merchant-logo";
@@ -43,6 +46,22 @@ function categoryColor(cat: string): string {
   return CATEGORY_COLORS[cat] ?? "#94A3B8";
 }
 
+function previousMonthPrefix(iso: string) {
+  const date = new Date(`${iso}T00:00:00`);
+  date.setMonth(date.getMonth() - 1);
+  return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, "0")}`;
+}
+
+function formatChange(current: number, previous: number) {
+  if (previous === 0) {
+    return current > 0 ? "New this month" : "No change";
+  }
+
+  const pct = ((current - previous) / previous) * 100;
+  const sign = pct >= 0 ? "+" : "";
+  return `${sign}${pct.toFixed(0)}% vs last month`;
+}
+
 // ─── Custom tooltip ───────────────────────────────────────────────────────────
 
 type SpendingTooltipProps = {
@@ -63,19 +82,21 @@ function BarTooltip({ active, payload, label }: SpendingTooltipProps) {
   if (!active || !payload?.length || !label) return null;
   return (
     <div
+      className="font-metric"
       style={{
-        background: "#fff",
+        background: "var(--tooltip-surface)",
         border: "1px solid var(--border)",
-        borderRadius: 8,
+        borderRadius: 12,
         padding: "10px 14px",
         boxShadow: "var(--shadow-md)",
         fontSize: 12,
+        backdropFilter: "blur(16px)",
       }}
     >
       <p style={{ margin: "0 0 4px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontSize: 11 }}>
         {label}
       </p>
-      <p className="num" style={{ margin: 0, fontWeight: 600, color: "var(--text-primary)", fontSize: 14 }}>
+      <p className="font-metric" style={{ margin: 0, fontWeight: 400, color: "var(--grey-900)", fontSize: 14 }}>
         {formatDKK(payload[0].value)}
       </p>
     </div>
@@ -105,7 +126,7 @@ function TxRow({ tx }: { tx: Transaction }) {
           {new Date(tx.date).toLocaleDateString("da-DK", { day: "numeric", month: "short" })}
         </div>
       </div>
-      <span className="num" style={{ fontSize: 13.5, fontWeight: 600, color: isPos ? "var(--green)" : "var(--text-primary)", flexShrink: 0 }}>
+      <span className="font-metric" style={{ fontSize: 13.5, fontWeight: 600, color: isPos ? "var(--green)" : "var(--text-primary)", flexShrink: 0 }}>
         {isPos ? "+" : ""}{formatDKK(tx.amountOere)}
       </span>
     </div>
@@ -116,70 +137,96 @@ function TxRow({ tx }: { tx: Transaction }) {
 
 export function SpendingPage() {
   const [drillCategory, setDrillCategory] = useState<string | null>(null);
+  const monthPrefix = "2026-03";
+  const lastMonthPrefix = previousMonthPrefix("2026-03-19");
 
-  // Only expense transactions (negative amounts), exclude income and transfers
-  const expenses = useMemo(
-    () => TRANSACTIONS.filter(t => t.amountOere < 0 && t.category !== "Transfer"),
-    []
+  const expenses = useMemo(() => TRANSACTIONS.filter((t) => t.amountOere < 0 && t.category !== "Transfer"), []);
+  const currentMonthExpenses = useMemo(
+    () => expenses.filter((transaction) => transaction.date.startsWith(monthPrefix)),
+    [expenses, monthPrefix],
+  );
+  const lastMonthExpenses = useMemo(
+    () => expenses.filter((transaction) => transaction.date.startsWith(lastMonthPrefix)),
+    [expenses, lastMonthPrefix],
   );
 
-  // Aggregate by category → total absolute spend
   const byCategory = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const tx of expenses) {
-      map[tx.category] = (map[tx.category] ?? 0) + Math.abs(tx.amountOere);
+    const currentMap: Record<string, number> = {};
+    const previousMap: Record<string, number> = {};
+
+    for (const tx of currentMonthExpenses) {
+      currentMap[tx.category] = (currentMap[tx.category] ?? 0) + Math.abs(tx.amountOere);
     }
-    return Object.entries(map)
-      .map(([category, total]) => ({ category, total }))
+
+    for (const tx of lastMonthExpenses) {
+      previousMap[tx.category] = (previousMap[tx.category] ?? 0) + Math.abs(tx.amountOere);
+    }
+
+    const categories = Array.from(new Set([...Object.keys(currentMap), ...Object.keys(previousMap)]));
+
+    return categories
+      .map((category) => {
+        const total = currentMap[category] ?? 0;
+        const previousTotal = previousMap[category] ?? 0;
+        return {
+          category,
+          total,
+          previousTotal,
+          delta: total - previousTotal,
+        };
+      })
+      .filter((row) => row.total > 0 || row.previousTotal > 0)
       .sort((a, b) => b.total - a.total);
-  }, [expenses]);
+  }, [currentMonthExpenses, lastMonthExpenses]);
 
   const grandTotal = byCategory.reduce((s, c) => s + c.total, 0);
+  const previousGrandTotal = byCategory.reduce((sum, category) => sum + category.previousTotal, 0);
+  const biggestMover = [...byCategory].sort((left, right) => Math.abs(right.delta) - Math.abs(left.delta))[0];
 
-  // Transactions in the selected category
   const drillTxs = useMemo(
-    () => drillCategory
-      ? expenses.filter(t => t.category === drillCategory).sort((a, b) => b.date.localeCompare(a.date))
-      : [],
-    [drillCategory, expenses]
+    () =>
+      drillCategory
+        ? currentMonthExpenses.filter((t) => t.category === drillCategory).sort((a, b) => b.date.localeCompare(a.date))
+        : [],
+    [drillCategory, currentMonthExpenses]
   );
 
   return (
     <div className="page-wrap">
       <PageHeader
-        title="Forbrug"
-        subtitle="Kategoriseret udgiftsanalyse fra dine transaktioner"
+        title="Spending"
+        subtitle="Category-level spending analysis based on your cleared transactions"
       />
 
       {/* Summary KPIs */}
       <div className="animate-fade-up anim-1 grid-3" style={{ marginBottom: 24 }}>
         <div className="card-hover" style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px", boxShadow: "var(--shadow-sm)" }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
-            Samlet forbrug
+            This month
           </div>
-          <div className="num" style={{ fontSize: 22, fontWeight: 600, color: "var(--red)", letterSpacing: "-0.02em" }}>
-            <AnimatedNumber value={grandTotal} format={n => formatDKK(Math.round(n))} delay={80} />
+          <div className="font-metric" style={{ fontSize: 20, fontWeight: 400, color: "var(--red)" }}>
+            <AnimatedNumber className="font-metric" value={grandTotal} format={n => formatDKK(Math.round(n))} delay={80} />
           </div>
-          <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>viste periode</div>
+          <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>{formatChange(grandTotal, previousGrandTotal)}</div>
         </div>
         <div className="card-hover" style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px", boxShadow: "var(--shadow-sm)" }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
-            Kategorier
+            Last month
           </div>
-          <div className="num" style={{ fontSize: 22, fontWeight: 600, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
-            <AnimatedNumber value={byCategory.length} format={n => `${Math.round(n)}`} delay={140} />
+          <div className="font-metric" style={{ fontSize: 20, fontWeight: 400, color: "var(--grey-900)" }}>
+            <AnimatedNumber className="font-metric" value={previousGrandTotal} format={n => formatDKK(Math.round(n))} delay={140} />
           </div>
-          <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>udgiftskategorier</div>
+          <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>Baseline for comparison</div>
         </div>
         <div className="card-hover" style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px", boxShadow: "var(--shadow-sm)" }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
-            Største udgiftspost
+            Biggest mover
           </div>
           <div style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
-            {byCategory[0]?.category ?? "—"}
+            {biggestMover?.category ?? "—"}
           </div>
-          <div className="num" style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>
-            {byCategory[0] ? formatDKK(byCategory[0].total) : "—"}
+          <div className="font-metric" style={{ fontSize: 11.5, fontWeight: 400, color: "var(--text-muted)", marginTop: 2 }}>
+            {biggestMover ? formatChange(biggestMover.total, biggestMover.previousTotal) : "—"}
           </div>
         </div>
       </div>
@@ -193,26 +240,19 @@ export function SpendingPage() {
           <CardHeader>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <PieIcon size={13} color="var(--text-muted)" />
-              <CardTitle>Forbrug pr. kategori</CardTitle>
+                <CardTitle>Spending by category</CardTitle>
             </div>
             {drillCategory && (
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
                 onClick={() => setDrillCategory(null)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "var(--accent)",
-                  fontSize: 12.5,
-                  fontFamily: "inherit",
-                  padding: 0,
-                }}
+                icon={<ChevronLeft size={13} />}
+                style={{ fontSize: 12.5, fontWeight: 500 }}
               >
-                <ChevronLeft size={13} /> Alle kategorier
-              </button>
+                All categories
+              </Button>
             )}
           </CardHeader>
           <CardBody style={{ paddingTop: 8 }}>
@@ -229,10 +269,10 @@ export function SpendingPage() {
                   }
                 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
                 <XAxis
                   dataKey="category"
-                  tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+                  tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: FIGMA_METRIC_FONT_STACK }}
                   axisLine={false}
                   tickLine={false}
                   angle={-40}
@@ -241,11 +281,11 @@ export function SpendingPage() {
                 />
                 <YAxis
                   tickFormatter={v => formatAxisDKK(v)}
-                  tick={{ fontSize: 10.5, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                  tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: FIGMA_METRIC_FONT_STACK }}
                   axisLine={false}
                   tickLine={false}
                 />
-                <Tooltip content={<BarTooltip />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
+                <Tooltip content={<BarTooltip />} cursor={{ fill: "rgba(84, 105, 212, 0.06)" }} />
                 <Bar dataKey="total" radius={[4, 4, 0, 0]} style={{ cursor: "pointer" }}>
                   {byCategory.map(entry => (
                     <Cell
@@ -313,9 +353,14 @@ export function SpendingPage() {
                     <span style={{ fontSize: 11.5, color: "var(--text-muted)", width: 32, textAlign: "right" }}>
                       {pct.toFixed(0)}%
                     </span>
-                    <span className="num" style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", width: 90, textAlign: "right" }}>
-                      {formatDKK(row.total)}
-                    </span>
+                    <div style={{ width: 144, textAlign: "right" }}>
+                      <div className="font-metric" style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                        {formatDKK(row.total)}
+                      </div>
+                      <div style={{ fontSize: 11, color: row.delta > 0 ? "var(--red)" : row.delta < 0 ? "var(--green)" : "var(--text-muted)" }}>
+                        {formatChange(row.total, row.previousTotal)}
+                      </div>
+                    </div>
                   </div>
                 );
               })}
@@ -330,12 +375,25 @@ export function SpendingPage() {
               <div>
                 <CardTitle>{drillCategory}</CardTitle>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                  {drillTxs.length} transaktioner
+                  {drillTxs.length} transactions
                 </div>
               </div>
-              <span className="num" style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
-                {formatDKK(byCategory.find(c => c.category === drillCategory)?.total ?? 0)}
-              </span>
+              <div style={{ display: "grid", justifyItems: "end", gap: 8 }}>
+                <span className="font-metric" style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
+                  {formatDKK(byCategory.find(c => c.category === drillCategory)?.total ?? 0)}
+                </span>
+                <Link
+                  href={`/transactions?category=${encodeURIComponent(drillCategory)}&period=month`}
+                  style={{
+                    textDecoration: "none",
+                    color: "var(--accent)",
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                  }}
+                >
+                  View in transactions
+                </Link>
+              </div>
             </CardHeader>
             <CardBody style={{ padding: 0, maxHeight: 480, overflowY: "auto" }}>
               {drillTxs.map(tx => <TxRow key={tx.id} tx={tx} />)}

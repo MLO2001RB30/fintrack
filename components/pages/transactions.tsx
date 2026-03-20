@@ -1,52 +1,165 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Search, ArrowLeftRight, RefreshCw, X, Tag } from "lucide-react";
-import { TRANSACTIONS, ACCOUNTS, formatDKK, type Transaction } from "@/lib/mock-data";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeftRight, CalendarRange, RefreshCw, Save, Search, X } from "lucide-react";
+import { ACCOUNTS, MOCK_TODAY, TRANSACTIONS, formatDKK } from "@/lib/mock-data";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { IconButton } from "@/components/ui/icon-button";
 import { MerchantLogo } from "@/components/ui/merchant-logo";
-import Link from "next/link";
+import { PageHeader } from "@/components/ui/page-header";
+import {
+  mergeOverrideCollections,
+  mergeTransactionOverrides,
+  normalizeTransactionOverride,
+  readLocalTransactionOverrides,
+  writeLocalTransactionOverrides,
+  type TransactionOverride,
+  type TransactionRecord,
+} from "@/lib/transaction-overrides";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+type PeriodFilter = "all" | "month" | "last-month" | "year" | "12-months" | "custom";
 
-function groupByDate(txs: Transaction[]): Record<string, Transaction[]> {
-  return txs.reduce((acc, tx) => {
-    if (!acc[tx.date]) acc[tx.date] = [];
-    acc[tx.date].push(tx);
-    return acc;
-  }, {} as Record<string, Transaction[]>);
+const PERIOD_OPTIONS: Array<{ value: PeriodFilter; label: string }> = [
+  { value: "all", label: "All time" },
+  { value: "month", label: "This month" },
+  { value: "last-month", label: "Last month" },
+  { value: "year", label: "This year" },
+  { value: "12-months", label: "Last 12 months" },
+  { value: "custom", label: "Custom range" },
+];
+
+type PersistenceMode = "remote" | "local";
+
+type TransactionOverrideResponse =
+  | {
+      ok: true;
+      data: {
+        persistence: PersistenceMode;
+        overrides?: TransactionOverride[];
+        override?: TransactionOverride;
+      };
+    }
+  | {
+      ok: false;
+      error: {
+        message: string;
+      };
+    };
+
+type SaveResult = {
+  persistence: PersistenceMode;
+  message: string;
+};
+
+function groupByDate(txs: TransactionRecord[]): Record<string, TransactionRecord[]> {
+  return txs.reduce((accumulator, transaction) => {
+    if (!accumulator[transaction.date]) accumulator[transaction.date] = [];
+    accumulator[transaction.date].push(transaction);
+    return accumulator;
+  }, {} as Record<string, TransactionRecord[]>);
 }
 
 function formatDateLabel(iso: string) {
-  const d = new Date(iso);
-  const today = new Date();
+  const date = new Date(iso);
+  const today = new Date(MOCK_TODAY);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
 
-  if (d.toDateString() === today.toDateString()) return "I dag";
-  if (d.toDateString() === yesterday.toDateString()) return "I går";
-  return d.toLocaleDateString("da-DK", { weekday: "long", day: "numeric", month: "long" });
+  if (date.toDateString() === today.toDateString()) return "Today";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+
+  return date.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long" });
 }
 
-// Generate a plausible raw bank description from the merchant name
-function rawDescription(tx: Transaction): string {
-  const date = tx.date.replace(/-/g, "");
-  const upper = tx.merchant.toUpperCase().replace(/\s+/g, " ").slice(0, 22);
-  const ref = Math.abs(tx.amountOere).toString().slice(-6);
-  return `${upper} ${date} REF${ref}`;
+function rawDescription(transaction: TransactionRecord) {
+  const date = transaction.date.replace(/-/g, "");
+  const merchant = transaction.merchant.toUpperCase().replace(/\s+/g, " ").slice(0, 22);
+  const reference = Math.abs(transaction.amountOere).toString().slice(-6);
+  return `${merchant} ${date} REF${reference}`;
 }
 
-// ─── Transaction Detail Modal ─────────────────────────────────────────────────
+function getPeriodRange(period: PeriodFilter, fromValue: string, toValue: string) {
+  const today = new Date(MOCK_TODAY);
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth();
 
-function TransactionModal({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
-  const account = ACCOUNTS.find(a => a.id === tx.accountId);
-  const isPos = tx.amountOere > 0;
+  if (period === "custom") {
+    return {
+      from: fromValue || null,
+      to: toValue || null,
+    };
+  }
 
-  // Close on backdrop click
-  function handleBackdrop(e: React.MouseEvent<HTMLDivElement>) {
-    if (e.target === e.currentTarget) onClose();
+  if (period === "month") {
+    return {
+      from: `${currentYear}-${`${currentMonth + 1}`.padStart(2, "0")}-01`,
+      to: MOCK_TODAY,
+    };
+  }
+
+  if (period === "last-month") {
+    const firstDayLastMonth = new Date(currentYear, currentMonth - 1, 1);
+    const lastDayLastMonth = new Date(currentYear, currentMonth, 0);
+    return {
+      from: `${firstDayLastMonth.getFullYear()}-${`${firstDayLastMonth.getMonth() + 1}`.padStart(2, "0")}-${`${firstDayLastMonth.getDate()}`.padStart(2, "0")}`,
+      to: `${lastDayLastMonth.getFullYear()}-${`${lastDayLastMonth.getMonth() + 1}`.padStart(2, "0")}-${`${lastDayLastMonth.getDate()}`.padStart(2, "0")}`,
+    };
+  }
+
+  if (period === "year") {
+    return {
+      from: `${currentYear}-01-01`,
+      to: MOCK_TODAY,
+    };
+  }
+
+  if (period === "12-months") {
+    const start = new Date(currentYear, currentMonth - 11, 1);
+    return {
+      from: `${start.getFullYear()}-${`${start.getMonth() + 1}`.padStart(2, "0")}-01`,
+      to: MOCK_TODAY,
+    };
+  }
+
+  return { from: null, to: null };
+}
+
+function formatPeriodSummary(period: PeriodFilter, fromValue: string, toValue: string) {
+  const { from, to } = getPeriodRange(period, fromValue, toValue);
+  if (!from && !to) return "No date filter";
+
+  const format = (value: string | null) =>
+    value
+      ? new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+      : "Start";
+
+  return `${format(from)} - ${format(to)}`;
+}
+
+function TransactionModal({
+  tx,
+  categories,
+  persistenceMode,
+  onClose,
+  onSave,
+}: {
+  tx: TransactionRecord;
+  categories: string[];
+  persistenceMode: PersistenceMode;
+  onClose: () => void;
+  onSave: (transactionId: string, updates: { category: string; note: string }) => Promise<SaveResult>;
+}) {
+  const account = ACCOUNTS.find((item) => item.id === tx.accountId);
+  const isPositive = tx.amountOere > 0;
+  const [category, setCategory] = useState(tx.category);
+  const [note, setNote] = useState(tx.note ?? "");
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  function handleBackdrop(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.target === event.currentTarget) onClose();
   }
 
   return (
@@ -56,7 +169,7 @@ function TransactionModal({ tx, onClose }: { tx: Transaction; onClose: () => voi
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.35)",
+        background: "var(--overlay-scrim)",
         backdropFilter: "blur(4px)",
         zIndex: 100,
         display: "flex",
@@ -70,343 +183,468 @@ function TransactionModal({ tx, onClose }: { tx: Transaction; onClose: () => voi
         style={{
           background: "var(--surface-1)",
           border: "1px solid var(--border)",
-          borderRadius: 16,
+          borderRadius: "var(--radius-card)",
           width: "100%",
-          maxWidth: 440,
+          maxWidth: 520,
+          maxHeight: "min(92vh, 760px)",
           boxShadow: "var(--shadow-lg)",
           overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
-        {/* Header */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "16px 20px",
+            padding: "18px 22px",
             borderBottom: "1px solid var(--border)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <MerchantLogo merchant={tx.merchant} size={40} radius={10} />
+            <MerchantLogo merchant={tx.merchant} size={44} radius={12} />
             <div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>{tx.merchant}</div>
-              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 1 }}>
-                {new Date(tx.date).toLocaleDateString("da-DK", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>{tx.merchant}</div>
+              <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 2 }}>
+                {new Date(tx.date).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
               </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--text-muted)",
-              padding: 4,
-              borderRadius: 6,
-              display: "flex",
-              alignItems: "center",
-              transition: "color 100ms",
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = "var(--text-primary)")}
-            onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}
-          >
-            <X size={18} />
-          </button>
+          <IconButton type="button" label="Close" onClick={onClose} style={{ color: "var(--grey-500)" }}>
+            <X size={18} strokeWidth={1.5} />
+          </IconButton>
         </div>
 
-        {/* Amount */}
         <div
           style={{
-            padding: "20px 20px 16px",
+            padding: "22px 22px 18px",
             display: "flex",
             alignItems: "baseline",
             gap: 6,
           }}
         >
           <span
-            className="num"
+            className="font-metric"
             style={{
               fontSize: 32,
               fontWeight: 700,
               letterSpacing: "-0.03em",
-              color: isPos ? "var(--green)" : "var(--text-primary)",
+              color: isPositive ? "var(--green)" : "var(--text-primary)",
             }}
           >
-            {isPos ? "+" : ""}{formatDKK(tx.amountOere)}
+            {isPositive ? "+" : ""}
+            {formatDKK(tx.amountOere)}
           </span>
           <span style={{ fontSize: 13, color: "var(--text-muted)" }}>DKK</span>
         </div>
 
-        {/* Details */}
-        <div style={{ padding: "0 20px 20px", display: "flex", flexDirection: "column", gap: 0 }}>
-          {[
-            {
-              label: "Kategori",
-              value: (
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <Tag size={11} color="var(--text-muted)" />
-                  <span style={{ fontSize: 13, color: "var(--text-primary)" }}>{tx.category}</span>
+        <div style={{ padding: "0 22px 22px", display: "grid", gap: 14, overflowY: "auto" }}>
+          <div style={{ display: "grid", gap: 5 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>Category</label>
+            <select
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+              style={{
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-control)",
+                padding: "11px 12px",
+                color: "var(--text-primary)",
+                fontSize: 13.5,
+                fontFamily: "inherit",
+                outline: "none",
+              }}
+            >
+              {categories.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "grid", gap: 5 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>Internal note</label>
+            <textarea
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="Add context for future you"
+              rows={3}
+              style={{
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-control)",
+                padding: "11px 12px",
+                color: "var(--text-primary)",
+                fontSize: 13.5,
+                fontFamily: "inherit",
+                outline: "none",
+                resize: "vertical",
+              }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 0 }}>
+            {[
+              {
+                label: "Account",
+                value: `${account?.institution ?? "Unknown account"} - ${account?.accountName ?? "Unknown"}`,
+              },
+              { label: "IBAN", value: account?.iban ?? "—" },
+              { label: "Raw bank description", value: rawDescription(tx) },
+              tx.isSubscription ? { label: "Type", value: "Subscription" } : null,
+            ]
+              .filter(Boolean)
+              .map((row, index, rows) => (
+                <div
+                  key={row!.label}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: 14,
+                    padding: "12px 0",
+                    borderBottom: index < rows.length - 1 ? "1px solid var(--border)" : "none",
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: "var(--text-muted)", minWidth: 132 }}>{row!.label}</span>
+                  <span
+                    className="font-metric"
+                    style={{
+                      fontSize: 13,
+                      color: "var(--text-primary)",
+                      textAlign: "right",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {row!.value}
+                  </span>
                 </div>
-              ),
-            },
-            {
-              label: "Konto",
-              value: (
-                <span style={{ fontSize: 13, color: "var(--text-primary)" }}>
-                  {account?.institution} — {account?.accountName}
-                </span>
-              ),
-            },
-            {
-              label: "IBAN",
-              value: (
-                <span className="num" style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
-                  {account?.iban ?? "—"}
-                </span>
-              ),
-            },
-            {
-              label: "Rå bankbeskrivelse",
-              value: (
-                <span className="num" style={{ fontSize: 11.5, color: "var(--text-muted)", wordBreak: "break-all" }}>
-                  {rawDescription(tx)}
-                </span>
-              ),
-            },
-            tx.isSubscription
-              ? {
-                  label: "Type",
-                  value: (
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 4,
-                        fontSize: 11.5,
-                        color: "var(--accent)",
-                        background: "var(--accent-glow)",
-                        padding: "2px 8px",
-                        borderRadius: 4,
-                        border: "1px solid rgba(245,158,11,0.2)",
-                      }}
-                    >
-                      <RefreshCw size={9} /> Abonnement
-                    </span>
-                  ),
-                }
-              : null,
-          ]
-            .filter(Boolean)
-            .map((row, i, arr) => (
-              <div
-                key={row!.label}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "11px 0",
-                  borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none",
-                  gap: 12,
-                }}
-              >
-                <span style={{ fontSize: 12, color: "var(--text-muted)", flexShrink: 0, minWidth: 130 }}>
-                  {row!.label}
-                </span>
-                <div style={{ textAlign: "right" }}>{row!.value}</div>
-              </div>
-            ))}
+              ))}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 12.5, color: savedMessage ? "var(--green)" : "var(--text-muted)" }}>
+              {savedMessage ??
+                (persistenceMode === "remote"
+                  ? "Edits save to your account."
+                  : "Edits save on this device while account sync is unavailable in this environment.")}
+            </div>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              disabled={isSaving}
+              icon={<Save size={14} strokeWidth={1.5} />}
+              onClick={async () => {
+                setIsSaving(true);
+                const result = await onSave(tx.id, { category, note });
+                setSavedMessage(result.message);
+                setIsSaving(false);
+              }}
+              style={{ fontWeight: 600, cursor: isSaving ? "wait" : "pointer" }}
+            >
+              {isSaving ? "Saving..." : "Save changes"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── All unique categories ────────────────────────────────────────────────────
-
-const ALL_CATEGORIES = Array.from(new Set(TRANSACTIONS.map(t => t.category))).sort();
-
-// ─── Main page ────────────────────────────────────────────────────────────────
-
 export function TransactionsPage({
   initialReviewMode = null,
   initialReviewMerchant = null,
+  initialCategory = null,
+  initialPeriod = null,
+  initialAccount = null,
+  initialTransactionId = null,
 }: {
   initialReviewMode?: string | null;
   initialReviewMerchant?: string | null;
+  initialCategory?: string | null;
+  initialPeriod?: string | null;
+  initialAccount?: string | null;
+  initialTransactionId?: string | null;
 }) {
   const reviewMode = initialReviewMode;
   const reviewMerchant = initialReviewMerchant;
+  const defaultPeriod =
+    initialPeriod && PERIOD_OPTIONS.some((option) => option.value === initialPeriod)
+      ? (initialPeriod as PeriodFilter)
+      : "month";
+  const [overrides, setOverrides] = useState<TransactionOverride[]>(() => readLocalTransactionOverrides());
   const [search, setSearch] = useState(reviewMerchant ?? "");
-  const [filterAccount, setFilterAccount] = useState("all");
-  const [filterCategory, setFilterCategory] = useState("all");
-  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [filterAccount, setFilterAccount] = useState(initialAccount ?? "all");
+  const [filterCategory, setFilterCategory] = useState(initialCategory ?? "all");
+  const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>(defaultPeriod);
+  const [customFrom, setCustomFrom] = useState(filterPeriod === "custom" ? MOCK_TODAY.slice(0, 7) + "-01" : "");
+  const [customTo, setCustomTo] = useState(filterPeriod === "custom" ? MOCK_TODAY : "");
+  const [selectedTxId, setSelectedTxId] = useState<string | null>(initialTransactionId);
   const [hideInternalTransfers, setHideInternalTransfers] = useState(false);
   const [reviewStatus, setReviewStatus] = useState<string | null>(null);
+  const [persistenceMode, setPersistenceMode] = useState<PersistenceMode>("local");
+
+  const transactions = useMemo(
+    () => mergeTransactionOverrides(TRANSACTIONS, overrides),
+    [overrides],
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadOverrides() {
+      try {
+        const response = await fetch("/api/transaction-overrides", {
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as TransactionOverrideResponse;
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.ok ? "Unable to load transaction overrides." : payload.error.message);
+        }
+
+        if (isCancelled) {
+          return;
+        }
+
+        setPersistenceMode(payload.data.persistence);
+        setOverrides((current) => {
+          const next = mergeOverrideCollections(current, payload.data.overrides ?? []);
+          writeLocalTransactionOverrides(next);
+          return next;
+        });
+      } catch {
+        if (!isCancelled) {
+          setPersistenceMode("local");
+        }
+      }
+    }
+
+    void loadOverrides();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const categories = useMemo(
+    () => Array.from(new Set(transactions.map((transaction) => transaction.category))).sort(),
+    [transactions],
+  );
 
   const filtered = useMemo(() => {
-    let txs = [...TRANSACTIONS];
-    if (hideInternalTransfers) txs = txs.filter(t => t.category !== "Transfer");
-    if (search) txs = txs.filter(t =>
-      t.merchant.toLowerCase().includes(search.toLowerCase()) ||
-      t.category.toLowerCase().includes(search.toLowerCase())
-    );
-    if (filterAccount !== "all") txs = txs.filter(t => t.accountId === filterAccount);
-    if (filterCategory !== "all") txs = txs.filter(t => t.category === filterCategory);
-    return txs.sort((a, b) => b.date.localeCompare(a.date));
-  }, [search, filterAccount, filterCategory, hideInternalTransfers]);
+    let current = [...transactions];
+    const range = getPeriodRange(filterPeriod, customFrom, customTo);
+
+    if (hideInternalTransfers) current = current.filter((transaction) => transaction.category !== "Transfer");
+    if (search) {
+      const query = search.toLowerCase();
+      current = current.filter(
+        (transaction) =>
+          transaction.merchant.toLowerCase().includes(query) ||
+          transaction.category.toLowerCase().includes(query) ||
+          (transaction.note ?? "").toLowerCase().includes(query),
+      );
+    }
+    if (filterAccount !== "all") current = current.filter((transaction) => transaction.accountId === filterAccount);
+    if (filterCategory !== "all") current = current.filter((transaction) => transaction.category === filterCategory);
+    if (range.from) current = current.filter((transaction) => transaction.date >= range.from!);
+    if (range.to) current = current.filter((transaction) => transaction.date <= range.to!);
+
+    return current.sort((left, right) => right.date.localeCompare(left.date));
+  }, [transactions, hideInternalTransfers, search, filterAccount, filterCategory, filterPeriod, customFrom, customTo]);
 
   const groups = groupByDate(filtered);
-  const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+  const sortedDates = Object.keys(groups).sort((left, right) => right.localeCompare(left));
+  const totalIn = filtered.filter((transaction) => transaction.amountOere > 0).reduce((sum, transaction) => sum + transaction.amountOere, 0);
+  const totalOut = filtered.filter((transaction) => transaction.amountOere < 0).reduce((sum, transaction) => sum + transaction.amountOere, 0);
+  const selectedTx = transactions.find((transaction) => transaction.id === selectedTxId) ?? null;
 
-  const totalIn = filtered.filter(t => t.amountOere > 0).reduce((s, t) => s + t.amountOere, 0);
-  const totalOut = filtered.filter(t => t.amountOere < 0).reduce((s, t) => s + t.amountOere, 0);
+  const hasFilters =
+    search ||
+    filterAccount !== "all" ||
+    filterCategory !== "all" ||
+    filterPeriod !== defaultPeriod ||
+    hideInternalTransfers ||
+    customFrom ||
+    customTo;
 
-  const hasFilters = search || filterAccount !== "all" || filterCategory !== "all";
   const reviewCandidates =
     reviewMode === "transfer"
-      ? TRANSACTIONS.filter((transaction) => transaction.category === "Transfer")
+      ? transactions.filter((transaction) => transaction.category === "Transfer")
       : reviewMerchant
-      ? TRANSACTIONS.filter((transaction) => transaction.merchant === reviewMerchant)
-      : [];
+        ? transactions.filter((transaction) => transaction.merchant === reviewMerchant)
+        : [];
 
   return (
     <div className="page-wrap">
-      {selectedTx && (
-        <TransactionModal tx={selectedTx} onClose={() => setSelectedTx(null)} />
-      )}
+      {selectedTx ? (
+        <TransactionModal
+          tx={selectedTx}
+          categories={categories}
+          persistenceMode={persistenceMode}
+          onClose={() => setSelectedTxId(null)}
+          onSave={async (transactionId, updates) => {
+            const optimisticOverride = normalizeTransactionOverride({
+              transactionId,
+              category: updates.category,
+              note: updates.note,
+            });
+
+            setOverrides((current) => {
+              const next = mergeOverrideCollections(current, [optimisticOverride]);
+              writeLocalTransactionOverrides(next);
+              return next;
+            });
+
+            try {
+              const response = await fetch("/api/transaction-overrides", {
+                method: "PUT",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  transactionId,
+                  category: updates.category,
+                  note: updates.note,
+                }),
+              });
+              const payload = (await response.json()) as TransactionOverrideResponse;
+
+              if (!response.ok || !payload.ok) {
+                throw new Error(payload.ok ? "Unable to save transaction changes." : payload.error.message);
+              }
+
+              setPersistenceMode(payload.data.persistence);
+
+              if (payload.data.override) {
+                setOverrides((current) => {
+                  const next = mergeOverrideCollections(current, [payload.data.override]);
+                  writeLocalTransactionOverrides(next);
+                  return next;
+                });
+              }
+
+              return {
+                persistence: payload.data.persistence,
+                message:
+                  payload.data.persistence === "remote"
+                    ? "Saved to your account."
+                    : "Saved on this device while account sync is unavailable in this environment.",
+              };
+            } catch {
+              setPersistenceMode("local");
+              return {
+                persistence: "local",
+                message: "Saved on this device. We couldn't sync to your account right now.",
+              };
+            }
+          }}
+        />
+      ) : null}
 
       <PageHeader
-        title="Transaktioner"
-        subtitle={`${filtered.length} transaktioner · ${ACCOUNTS.filter(a => a.status === "active").length} konti`}
+        title="Transactions"
+        subtitle={`${filtered.length} transactions · ${formatPeriodSummary(filterPeriod, customFrom, customTo)}`}
       />
+
+      <Card className="animate-fade-up anim-1" style={{ marginBottom: 18, padding: 16 }}>
+        <div style={{ fontSize: 12.5, color: persistenceMode === "remote" ? "var(--green)" : "var(--text-secondary)" }}>
+          {persistenceMode === "remote"
+            ? "Transaction notes and category changes save to your account."
+            : "Transaction notes and category changes currently save on this device while account sync is unavailable in this environment."}
+        </div>
+      </Card>
 
       {(reviewMode || reviewStatus) && (
         <Card className="animate-fade-up anim-1" style={{ marginBottom: 20, padding: 18 }}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
-                Gennemgang
+                Review flow
               </div>
               <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 6 }}>
                 {reviewMode === "transfer"
-                  ? "Tjek interne overførsler"
+                  ? "Review internal transfers"
                   : reviewMerchant
-                  ? `Tjek merchant: ${reviewMerchant}`
-                  : "Gennemgå poster"}
+                    ? `Review merchant: ${reviewMerchant}`
+                    : "Review transactions"}
               </div>
               <div style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55, maxWidth: 680 }}>
                 {reviewMode === "transfer"
-                  ? "Bekræft om overførsler skal behandles som intern bevægelse og skjules fra denne visning."
+                  ? "Confirm whether these movements should be treated as internal transfers and hidden from spend views."
                   : reviewMerchant
-                  ? "Fokuser på den valgte merchant og bekræft om købet skal undersøges nærmere."
-                  : "Gennemgå de transaktioner der kræver opmærksomhed."}
+                    ? "Focus on the selected merchant and decide whether the transaction needs a better category or note."
+                    : "Review the transactions that need attention."}
               </div>
               <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--text-muted)" }}>
-                {reviewCandidates.length} matchende transaktion{reviewCandidates.length === 1 ? "" : "er"}
+                {reviewCandidates.length} matching transaction{reviewCandidates.length === 1 ? "" : "s"}
               </div>
-              {reviewStatus ? (
-                <div style={{ marginTop: 10, fontSize: 12, color: "var(--green)" }}>{reviewStatus}</div>
-              ) : null}
+              {reviewStatus ? <div style={{ marginTop: 10, fontSize: 12, color: "var(--green)" }}>{reviewStatus}</div> : null}
             </div>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Link
-                href="/transactions"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "8px 12px",
-                  background: "var(--surface-1)",
-                  border: "1px solid var(--border-strong)",
-                  borderRadius: 8,
-                  fontSize: 12.5,
-                  color: "var(--text-primary)",
-                  boxShadow: "var(--shadow-sm)",
-                  textDecoration: "none",
-                }}
-              >
-                Luk gennemgang
-              </Link>
+              <Button href="/transactions" variant="secondary" size="md">
+                Close review
+              </Button>
               {reviewMode === "transfer" ? (
                 <>
-                  <button
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
                     onClick={() => {
                       setFilterCategory("Transfer");
-                      setReviewStatus("Transfer-visning aktiveret.");
-                    }}
-                    style={{
-                      padding: "8px 12px",
-                      background: "var(--surface-2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      fontSize: 12.5,
-                      color: "var(--text-secondary)",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
+                      setReviewStatus("Transfer filter enabled.");
                     }}
                   >
-                    Vis overførsler
-                  </button>
-                  <button
+                    Show transfers
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
                     onClick={() => {
                       setHideInternalTransfers(true);
                       setFilterCategory("all");
-                      setReviewStatus("Interne overførsler skjules nu i denne session.");
-                    }}
-                    style={{
-                      padding: "8px 12px",
-                      background: "var(--accent)",
-                      border: "none",
-                      borderRadius: 8,
-                      fontSize: 12.5,
-                      color: "#fff",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
+                      setReviewStatus("Internal transfers are hidden in this session.");
                     }}
                   >
-                    Skjul som intern
-                  </button>
+                    Hide as internal
+                  </Button>
                 </>
               ) : reviewMerchant ? (
                 <>
-                  <button
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
                     onClick={() => {
                       setSearch(reviewMerchant);
-                      setReviewStatus(`${reviewMerchant} er nu fremhævet i søgningen.`);
-                    }}
-                    style={{
-                      padding: "8px 12px",
-                      background: "var(--surface-2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      fontSize: 12.5,
-                      color: "var(--text-secondary)",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
+                      setReviewStatus(`${reviewMerchant} is now highlighted in search.`);
                     }}
                   >
-                    Behold filter
-                  </button>
-                  <button
+                    Keep filter
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
                     onClick={() => {
-                      if (reviewCandidates[0]) setSelectedTx(reviewCandidates[0]);
-                      setReviewStatus("Åbner den mest relevante transaktion til nærmere gennemgang.");
-                    }}
-                    style={{
-                      padding: "8px 12px",
-                      background: "var(--accent)",
-                      border: "none",
-                      borderRadius: 8,
-                      fontSize: 12.5,
-                      color: "#fff",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
+                      if (reviewCandidates[0]) setSelectedTxId(reviewCandidates[0].id);
+                      setReviewStatus("Opening the most relevant transaction.");
                     }}
                   >
-                    Åbn bedste match
-                  </button>
+                    Open best match
+                  </Button>
                 </>
               ) : null}
             </div>
@@ -414,126 +652,224 @@ export function TransactionsPage({
         </Card>
       )}
 
-      {/* Summary */}
       <div className="animate-fade-up anim-1 grid-3" style={{ marginBottom: 24 }}>
         {[
-          { label: "Indgående", value: formatDKK(totalIn), color: "var(--green)" },
-          { label: "Udgående", value: formatDKK(Math.abs(totalOut)), color: "var(--red)" },
-          { label: "Netto", value: formatDKK(totalIn + totalOut), color: totalIn + totalOut >= 0 ? "var(--green)" : "var(--red)" },
-        ].map(s => (
-          <div key={s.label} style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>{s.label}</div>
-            <div className="num" style={{ fontSize: 22, fontWeight: 600, color: s.color, letterSpacing: "-0.02em" }}>{s.value}</div>
+          { label: "Money in", value: formatDKK(totalIn), color: "var(--green)" },
+          { label: "Money out", value: formatDKK(Math.abs(totalOut)), color: "var(--red)" },
+          { label: "Net", value: formatDKK(totalIn + totalOut), color: totalIn + totalOut >= 0 ? "var(--green)" : "var(--red)" },
+        ].map((item) => (
+          <div
+            key={item.label}
+            style={{
+              background: "var(--surface-1)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-card)",
+              boxShadow: "var(--shadow-sm)",
+              padding: "16px 18px",
+            }}
+          >
+            <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
+              {item.label}
+            </div>
+            <div className="font-metric" style={{ fontSize: 22, fontWeight: 600, color: item.color, letterSpacing: "-0.02em" }}>
+              {item.value}
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
-      <div
-        className="animate-fade-up anim-2"
-        style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}
-      >
-        {/* Search */}
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            background: "var(--surface-1)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            padding: "8px 12px",
-            maxWidth: 280,
-          }}
-        >
-          <Search size={13} color="var(--text-muted)" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Søg transaktioner..."
-            style={{ background: "none", border: "none", outline: "none", color: "var(--text-primary)", fontSize: 13, fontFamily: "inherit", width: "100%" }}
-          />
-        </div>
+      <div className="animate-fade-up anim-2" style={{ display: "grid", gap: 12, marginBottom: 18 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: "var(--surface-1)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-control)",
+              padding: "10px 12px",
+              minWidth: 220,
+              maxWidth: 320,
+            }}
+          >
+            <Search size={14} color="var(--text-muted)" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search transactions..."
+              style={{
+                background: "none",
+                border: "none",
+                outline: "none",
+                color: "var(--text-primary)",
+                fontSize: 13,
+                fontFamily: "inherit",
+                width: "100%",
+              }}
+            />
+          </div>
 
-        {/* Account filter */}
-        <select
-          value={filterAccount}
-          onChange={e => setFilterAccount(e.target.value)}
-          style={{
-            background: "var(--surface-1)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            padding: "8px 12px",
-            color: "var(--text-primary)",
-            fontSize: 13,
-            fontFamily: "inherit",
-            cursor: "pointer",
-            outline: "none",
-          }}
-        >
-          <option value="all">Alle konti</option>
-          {ACCOUNTS.map(a => (
-            <option key={a.id} value={a.id}>{a.institution} — {a.accountName}</option>
-          ))}
-        </select>
+          <select
+            value={filterAccount}
+            onChange={(event) => setFilterAccount(event.target.value)}
+            style={{
+              background: "var(--surface-1)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-control)",
+              padding: "10px 12px",
+              color: "var(--text-primary)",
+              fontSize: 13,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              outline: "none",
+            }}
+          >
+            <option value="all">All accounts</option>
+            {ACCOUNTS.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.institution} - {account.accountName}
+              </option>
+            ))}
+          </select>
 
-        {/* Category filter */}
-        <select
-          value={filterCategory}
-          onChange={e => setFilterCategory(e.target.value)}
-          style={{
-            background: "var(--surface-1)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            padding: "8px 12px",
-            color: "var(--text-primary)",
-            fontSize: 13,
-            fontFamily: "inherit",
-            cursor: "pointer",
-            outline: "none",
-          }}
-        >
-          <option value="all">Alle kategorier</option>
-          {ALL_CATEGORIES.map(c => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
+          <select
+            value={filterCategory}
+            onChange={(event) => setFilterCategory(event.target.value)}
+            style={{
+              background: "var(--surface-1)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-control)",
+              padding: "10px 12px",
+              color: "var(--text-primary)",
+              fontSize: 13,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              outline: "none",
+            }}
+          >
+            <option value="all">All categories</option>
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
 
-        {/* Clear filters */}
-        {hasFilters && (
-          <button
-            onClick={() => { setSearch(""); setFilterAccount("all"); setFilterCategory("all"); setHideInternalTransfers(false); setReviewStatus(null); }}
+          <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 5,
-              padding: "8px 12px",
-              background: "none",
+              gap: 8,
+              background: "var(--surface-1)",
               border: "1px solid var(--border)",
-              borderRadius: 8,
-              fontSize: 12.5,
-              color: "var(--text-muted)",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              transition: "color 100ms",
+              borderRadius: "var(--radius-control)",
+              padding: "10px 12px",
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = "var(--text-primary)")}
-            onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}
           >
-            <X size={12} /> Ryd filtre
-          </button>
-        )}
+            <CalendarRange size={14} color="var(--text-muted)" />
+            <select
+              value={filterPeriod}
+              onChange={(event) => setFilterPeriod(event.target.value as PeriodFilter)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--text-primary)",
+                fontSize: 13,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                outline: "none",
+              }}
+            >
+              {PERIOD_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {hasFilters ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              icon={<X size={12} strokeWidth={1.5} />}
+              onClick={() => {
+                setSearch("");
+                setFilterAccount("all");
+                setFilterCategory("all");
+                setFilterPeriod(defaultPeriod);
+                setCustomFrom("");
+                setCustomTo("");
+                setHideInternalTransfers(false);
+                setReviewStatus(null);
+              }}
+              style={{ color: "var(--grey-600)" }}
+            >
+              Clear filters
+            </Button>
+          ) : null}
+        </div>
+
+        {filterPeriod === "custom" ? (
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(event) => setCustomFrom(event.target.value)}
+              style={{
+                background: "var(--surface-1)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                padding: "10px 12px",
+                color: "var(--text-primary)",
+                fontSize: 13,
+                fontFamily: "inherit",
+                outline: "none",
+              }}
+            />
+            <input
+              type="date"
+              value={customTo}
+              onChange={(event) => setCustomTo(event.target.value)}
+              style={{
+                background: "var(--surface-1)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                padding: "10px 12px",
+                color: "var(--text-primary)",
+                fontSize: 13,
+                fontFamily: "inherit",
+                outline: "none",
+              }}
+            />
+          </div>
+        ) : null}
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
+            Click any row to open details, recategorize it, and add a note.
+          </div>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-secondary)" }}>
+            <input
+              type="checkbox"
+              checked={hideInternalTransfers}
+              onChange={(event) => setHideInternalTransfers(event.target.checked)}
+            />
+            Hide internal transfers
+          </label>
+        </div>
       </div>
 
-      {/* Transaction groups */}
       <div className="animate-fade-up anim-3" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        {sortedDates.map(date => {
-          const txs = groups[date];
-          const dayTotal = txs.reduce((s, t) => s + t.amountOere, 0);
+        {sortedDates.map((date) => {
+          const transactionsForDate = groups[date];
+          const dayTotal = transactionsForDate.reduce((sum, transaction) => sum + transaction.amountOere, 0);
+
           return (
             <div key={date}>
-              {/* Date header */}
               <div
                 style={{
                   display: "flex",
@@ -547,51 +883,60 @@ export function TransactionsPage({
                   {formatDateLabel(date)}
                 </span>
                 <span
-                  className="num"
+                  className="font-metric"
                   style={{
                     fontSize: 12,
                     color: dayTotal >= 0 ? "var(--green)" : "var(--red)",
                     fontWeight: 500,
                   }}
                 >
-                  {dayTotal >= 0 ? "+" : ""}{formatDKK(dayTotal)}
+                  {dayTotal >= 0 ? "+" : ""}
+                  {formatDKK(dayTotal)}
                 </span>
               </div>
 
               <Card>
-                {txs.map((tx, i) => {
-                  const account = ACCOUNTS.find(a => a.id === tx.accountId);
-                  const isPos = tx.amountOere > 0;
+                {transactionsForDate.map((transaction, index) => {
+                  const account = ACCOUNTS.find((item) => item.id === transaction.accountId);
+                  const isPositive = transaction.amountOere > 0;
+
                   return (
                     <div
-                      key={tx.id}
+                      key={transaction.id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => setSelectedTx(tx)}
-                      onKeyDown={e => e.key === "Enter" && setSelectedTx(tx)}
+                      onClick={() => setSelectedTxId(transaction.id)}
+                      onKeyDown={(event) => event.key === "Enter" && setSelectedTxId(transaction.id)}
                       style={{
                         display: "flex",
                         alignItems: "center",
                         gap: 13,
                         padding: "12px 18px",
-                        borderBottom: i < txs.length - 1 ? "1px solid var(--border)" : "none",
+                        borderBottom: index < transactionsForDate.length - 1 ? "1px solid var(--border)" : "none",
                         transition: "background 100ms",
                         cursor: "pointer",
                         outline: "none",
                       }}
-                      onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.background = "var(--hover-bg)")}
-                      onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.background = "transparent")}
+                      onMouseEnter={(event) => ((event.currentTarget as HTMLDivElement).style.background = "var(--hover-bg)")}
+                      onMouseLeave={(event) => ((event.currentTarget as HTMLDivElement).style.background = "transparent")}
                     >
-                      {/* Merchant logo */}
-                      <MerchantLogo merchant={tx.merchant} size={36} radius={9} />
+                      <MerchantLogo merchant={transaction.merchant} size={36} radius={9} />
 
-                      {/* Merchant + account */}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                          <span style={{ fontSize: 13.5, fontWeight: 500, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {tx.merchant}
+                        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                          <span
+                            style={{
+                              fontSize: 13.5,
+                              fontWeight: 500,
+                              color: "var(--text-primary)",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {transaction.merchant}
                           </span>
-                          {tx.isSubscription && (
+                          {transaction.isSubscription ? (
                             <span
                               style={{
                                 display: "inline-flex",
@@ -602,31 +947,32 @@ export function TransactionsPage({
                                 background: "var(--accent-glow)",
                                 padding: "1px 6px",
                                 borderRadius: 4,
-                                border: "1px solid rgba(245,158,11,0.2)",
+                                border: "1px solid var(--accent-border)",
                                 flexShrink: 0,
                               }}
                             >
-                              <RefreshCw size={8} /> Abo
+                              <RefreshCw size={8} /> Sub
                             </span>
-                          )}
+                          ) : null}
                         </div>
                         <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-                          {account?.institution} · {account?.accountName} · {tx.category}
+                          {account?.institution} · {account?.accountName} · {transaction.category}
+                          {transaction.note ? ` · Note: ${transaction.note}` : ""}
                         </div>
                       </div>
 
-                      {/* Amount */}
                       <div
-                        className="num"
+                        className="font-metric"
                         style={{
                           fontSize: 14.5,
                           fontWeight: 600,
-                          color: isPos ? "var(--green)" : "var(--text-primary)",
+                          color: isPositive ? "var(--green)" : "var(--text-primary)",
                           textAlign: "right",
                           flexShrink: 0,
                         }}
                       >
-                        {isPos ? "+" : ""}{formatDKK(tx.amountOere)}
+                        {isPositive ? "+" : ""}
+                        {formatDKK(transaction.amountOere)}
                       </div>
                     </div>
                   );
@@ -636,33 +982,18 @@ export function TransactionsPage({
           );
         })}
 
-        {sortedDates.length === 0 && (
+        {sortedDates.length === 0 ? (
           <EmptyState
             icon={<ArrowLeftRight size={22} />}
-            title="Ingen transaktioner fundet"
-            description="Prøv at justere dine filtre, eller tilslut en bankkonto for at se dine transaktioner."
+            title="No transactions found"
+            description="Try adjusting the filters or connect a bank account to pull in more activity."
             action={
-              <Link
-                href="/accounts"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "8px 16px",
-                  background: "var(--accent)",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: "#fff",
-                  textDecoration: "none",
-                }}
-              >
-                Tilslut bankkonto
-              </Link>
+              <Button href="/accounts" variant="primary" size="md">
+                Connect bank account
+              </Button>
             }
           />
-        )}
+        ) : null}
       </div>
     </div>
   );

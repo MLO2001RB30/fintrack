@@ -1,587 +1,690 @@
 "use client";
 
-import { Area, AreaChart, CartesianGrid, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import {
-  AlertCircle,
-  ArrowRight,
-  CalendarClock,
-  CreditCard,
-  ShieldAlert,
-  Sparkles,
-  Target,
-  TrendingDown,
-  TrendingUp,
-  Wallet,
-} from "lucide-react";
+import { useMemo } from "react";
 import Link from "next/link";
-import {
-  ACCOUNTS,
-  BUDGETS,
-  buildCashFlowForecast,
-  formatAxisDKK,
-  formatChange,
-  formatDKK,
-  formatPct,
-  getCheckingBalanceTotal,
-  getDaysBetween,
-  getUpcomingCashFlow,
-  GOALS,
-  MOCK_TODAY,
-  NET_WORTH_CHANGE,
-  NET_WORTH_PCT,
-  REVIEW_ITEMS,
-  SUBSCRIPTIONS,
-  TRANSACTIONS,
-  type CashFlowEvent,
-  type CashFlowForecastPoint,
-} from "@/lib/mock-data";
-import { Badge } from "@/components/ui/badge";
+import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CalendarDays, ChevronDown, Info, Settings } from "lucide-react";
+import { ACCOUNTS, MOCK_TODAY, TRANSACTIONS, buildCashFlowForecast } from "@/lib/mock-data";
+import { FIGMA_METRIC_FONT_STACK } from "@/lib/typography";
+import { useReviewQueue } from "@/lib/use-review-queue";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
-import { KpiCard } from "@/components/ui/kpi-card";
-import { PageHeader } from "@/components/ui/page-header";
+import { MerchantLogo } from "@/components/ui/merchant-logo";
 
-type ForecastTooltipProps = {
-  active?: boolean;
-  payload?: Array<{ payload: CashFlowForecastPoint }>;
-  label?: string;
-};
+const CHART_BLUE = "#5469d4";
+const CHART_BLUE_SOFT = "#7dabf8";
+const CHART_GREY = "#c2c7cf";
 
-function formatShortDate(iso: string) {
-  return new Date(iso).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
+function formatKr(amountOere: number) {
+  return new Intl.NumberFormat("da-DK", {
+    style: "currency",
+    currency: "DKK",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amountOere / 100);
 }
 
-function formatLongDate(iso: string) {
-  return new Date(iso).toLocaleDateString("da-DK", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
+function addCalendarDays(iso: string, delta: number): string {
+  const base = new Date(`${iso}T12:00:00`);
+  base.setDate(base.getDate() + delta);
+  return base.toISOString().slice(0, 10);
+}
+
+function isExpenseTransaction(transaction: (typeof TRANSACTIONS)[number]) {
+  return transaction.amountOere < 0 && transaction.category !== "Transfer";
+}
+
+function dayExpenseTotal(iso: string) {
+  return TRANSACTIONS.filter((t) => t.date === iso && isExpenseTransaction(t)).reduce(
+    (sum, t) => sum + Math.abs(t.amountOere),
+    0,
+  );
+}
+
+function monthKeysEnding(endIso: string, count: number): string[] {
+  const end = new Date(`${endIso}T12:00:00`);
+  const keys: string[] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(end.getFullYear(), end.getMonth() - i, 1);
+    keys.push(`${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, "0")}`);
+  }
+  return keys;
+}
+
+function monthLabel(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+function aggregateMonth(ym: string) {
+  const inMonth = TRANSACTIONS.filter((t) => t.date.startsWith(ym));
+  const expenses = inMonth.filter(isExpenseTransaction);
+  const income = inMonth.filter((t) => t.amountOere > 0);
+  const expenseTotal = expenses.reduce((s, t) => s + Math.abs(t.amountOere), 0);
+  const incomeTotal = income.reduce((s, t) => s + t.amountOere, 0);
+  const cardish = expenses
+    .filter((t) => t.accountId !== "acc-2")
+    .reduce((s, t) => s + Math.abs(t.amountOere), 0);
+  const net = incomeTotal - expenseTotal;
+  return {
+    expenseTotal,
+    incomeTotal,
+    cardish,
+    net,
+    txCount: inMonth.length,
+  };
+}
+
+type PctTone = "positive" | "negative" | "neutral";
+
+function pctTone(pct: number): PctTone {
+  if (Math.abs(pct) < 0.05) return "neutral";
+  return pct >= 0 ? "positive" : "negative";
+}
+
+function PctTag({ pct }: { pct: number }) {
+  const tone = pctTone(pct);
+  const bg =
+    tone === "neutral" ? "#e3e8ee" : tone === "positive" ? "var(--green-soft)" : "var(--red-soft)";
+  const color = tone === "neutral" ? "var(--text-muted)" : tone === "positive" ? "var(--green)" : "var(--red)";
+  const label = `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+
+  return (
+    <span
+      className="font-metric"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "2px 6px",
+        borderRadius: 4,
+        background: bg,
+        color,
+        fontSize: 12,
+        fontWeight: 600,
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function buildHourlySeries(dayTotalOere: number) {
+  const total = Math.max(dayTotalOere, 1);
+  return Array.from({ length: 24 }, (_, hour) => {
+    const t = hour / 23;
+    const curve = (1 - Math.cos(t * Math.PI)) / 2;
+    const jitter = 0.92 + 0.08 * (hour / 23);
+    const value = Math.round(total * curve * jitter);
+    return {
+      hour,
+      label: `${`${hour}`.padStart(2, "0")}:00`,
+      cumulative: value,
+    };
   });
 }
 
-function ForecastTooltip({ active, payload, label }: ForecastTooltipProps) {
-  if (!active || !payload?.length || !label) return null;
+function ReportSparkline({
+  current,
+  compare,
+}: {
+  current: number[];
+  compare: number[];
+}) {
+  const data = current.map((c, i) => ({ i, c, p: compare[i] ?? 0 }));
+  return (
+    <div style={{ width: "100%", height: 72 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 6, right: 4, left: 4, bottom: 0 }}>
+          <XAxis dataKey="i" hide />
+          <YAxis hide domain={["dataMin - 50", "dataMax + 50"]} />
+          <Line type="monotone" dataKey="p" stroke={CHART_GREY} strokeWidth={2} dot={false} isAnimationActive={false} />
+          <Line
+            type="monotone"
+            dataKey="c"
+            stroke={CHART_BLUE}
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
-  const point = payload[0].payload;
-
+function ReportCard({
+  title,
+  pct,
+  primary,
+  secondary,
+  current,
+  compare,
+  leftMonth,
+  rightMonth,
+}: {
+  title: string;
+  pct: number;
+  primary: string;
+  secondary: string;
+  current: number[];
+  compare: number[];
+  leftMonth: string;
+  rightMonth: string;
+}) {
   return (
     <div
       style={{
-        background: "#fff",
         border: "1px solid var(--border)",
-        borderRadius: 16,
-        padding: "12px 14px",
-        boxShadow: "var(--shadow-md)",
+        borderRadius: "var(--radius-card)",
+        background: "var(--surface-1)",
+        boxShadow: "var(--shadow-sm)",
+        padding: "18px 20px 14px",
+        display: "grid",
+        gap: 12,
+        minWidth: 0,
       }}
     >
-      <div style={{ marginBottom: 6, fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-        {formatLongDate(label)}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span style={{ fontSize: 16, fontWeight: 600, color: "var(--grey-900)" }}>{title}</span>
+          <Info size={14} strokeWidth={1.5} color="var(--grey-500)" aria-hidden style={{ flexShrink: 0 }} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+          <PctTag pct={pct} />
+          <Button type="button" variant="ghost" size="sm">
+            View
+          </Button>
+        </div>
       </div>
-      <div className="num" style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>
-        {formatDKK(point.balanceOere)}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
+        <span className="font-metric" style={{ fontSize: 20, fontWeight: 400, color: "var(--grey-900)" }}>
+          {primary}
+        </span>
+        <span className="font-metric" style={{ fontSize: 14, fontWeight: 400, color: "var(--text-secondary)" }}>
+          {secondary}
+        </span>
       </div>
-      <div style={{ fontSize: 11.5, color: point.deltaOere >= 0 ? "var(--green)" : "var(--red)" }}>
-        {point.deltaOere > 0 ? "+" : ""}
-        {formatDKK(point.deltaOere)} den dag
+      <ReportSparkline current={current} compare={compare} />
+      <div
+        className="font-metric"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 12,
+          color: "var(--text-muted)",
+        }}
+      >
+        <span>{leftMonth}</span>
+        <span>{rightMonth}</span>
       </div>
     </div>
   );
 }
-
-function CashEventRow({ event }: { event: CashFlowEvent }) {
-  const daysAway = getDaysBetween(MOCK_TODAY, event.date);
-  const variant =
-    event.type === "income" ? "active" : event.type === "subscription" ? "monthly" : event.essential ? "paused" : "yearly";
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 14,
-        padding: "12px 0",
-        borderBottom: "1px solid var(--border)",
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <span style={{ fontSize: 13.5, fontWeight: 500, color: "var(--text-primary)" }}>{event.merchant}</span>
-          <Badge variant={variant} size="sm">
-            {event.type === "income" ? "Indkomst" : event.type === "subscription" ? "Abonnement" : event.label}
-          </Badge>
-        </div>
-        <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-          {formatLongDate(event.date)} · {daysAway === 0 ? "i dag" : daysAway === 1 ? "i morgen" : `om ${daysAway} dage`}
-        </div>
-      </div>
-      <div className="num" style={{ fontSize: 13.5, fontWeight: 600, color: event.amountOere > 0 ? "var(--green)" : "var(--text-primary)" }}>
-        {event.amountOere > 0 ? "+" : ""}
-        {formatDKK(event.amountOere)}
-      </div>
-    </div>
-  );
-}
-
 
 export function Dashboard() {
-  const today = new Date(MOCK_TODAY);
-  const activeAccounts = ACCOUNTS.filter((account) => account.status === "active");
-  const expiredAccounts = ACCOUNTS.filter((account) => account.status === "expired");
-  const checkingBalance = getCheckingBalanceTotal();
-  const forecast = buildCashFlowForecast(21);
-  const projectedThreeWeeks = forecast[forecast.length - 1]?.balanceOere ?? checkingBalance;
+  const { openItems } = useReviewQueue();
+  const yesterdayIso = addCalendarDays(MOCK_TODAY, -1);
+  const todaySpend = dayExpenseTotal(MOCK_TODAY);
+  const yesterdaySpend = dayExpenseTotal(yesterdayIso);
+  const hourlyData = useMemo(() => buildHourlySeries(todaySpend), [todaySpend]);
+  const nowHour = 12;
+
+  const monthKeys = useMemo(() => monthKeysEnding(MOCK_TODAY, 12), []);
+  const monthly = useMemo(() => monthKeys.map((ym) => ({ ym, ...aggregateMonth(ym) })), [monthKeys]);
+
+  const mar = monthly.find((m) => m.ym === "2026-03");
+  const feb = monthly.find((m) => m.ym === "2026-02");
+  const pctChange = (current: number, previous: number) => {
+    if (previous === 0) return current === 0 ? 0 : 100;
+    return ((current - previous) / previous) * 100;
+  };
+
+  const spendMar = mar?.expenseTotal ?? 0;
+  const spendFeb = feb?.expenseTotal ?? 0;
+  const cardMar = mar?.cardish ?? 0;
+  const cardFeb = feb?.cardish ?? 0;
+  const netMar = mar?.net ?? 0;
+  const netFeb = feb?.net ?? 0;
+  const txMar = mar?.txCount ?? 0;
+  const txFeb = feb?.txCount ?? 0;
+  const incomeMar = mar?.incomeTotal ?? 0;
+  const incomeFeb = feb?.incomeTotal ?? 0;
+
+  const activeAccounts = ACCOUNTS.filter((a) => a.status === "active").slice(0, 2);
+
+  const spendSeries = monthly.map((m) => m.expenseTotal);
+  const spendCompare = spendSeries.map((v, i) => Math.round(v * (0.82 + 0.03 * Math.sin(i / 2))));
+  const cardSeries = monthly.map((m) => m.cardish);
+  const cardCompare = cardSeries.map((v, i) => Math.round(v * (0.85 + 0.02 * Math.cos(i))));
+  const netSeries = monthly.map((m) => Math.max(m.net, 0));
+  const netCompare = netSeries.map((v, i) => Math.round(v * (0.9 + 0.02 * Math.sin(i))));
+  const txSeries = monthly.map((m) => m.txCount * 1500);
+  const txCompare = txSeries.map((v, i) => Math.round(v * (0.88 + 0.03 * Math.cos(i / 3))));
+  const accSeries = monthly.map((_, i) => 3 + (i % 3));
+  const accCompare = accSeries.map((v) => Math.max(1, v - 1));
+  const incomeSeries = monthly.map((m) => m.incomeTotal);
+  const incomeCompare = incomeSeries.map((v, i) => Math.round(v * (0.95 + 0.01 * Math.sin(i))));
+
+  const forecast = buildCashFlowForecast(30);
   const forecastLowPoint = forecast.reduce((lowest, point) =>
     point.balanceOere < lowest.balanceOere ? point : lowest,
   );
-  const upcoming7Days = getUpcomingCashFlow(7);
-  const upcoming14Days = getUpcomingCashFlow(14);
-  const next7DayOutflows = upcoming7Days
-    .filter((event) => event.amountOere < 0)
-    .reduce((sum, event) => sum + Math.abs(event.amountOere), 0);
-  const next14DayIncome = upcoming14Days
-    .filter((event) => event.amountOere > 0)
-    .reduce((sum, event) => sum + event.amountOere, 0);
-  const next14DayOutflows = upcoming14Days
-    .filter((event) => event.amountOere < 0)
-    .reduce((sum, event) => sum + Math.abs(event.amountOere), 0);
-  const emergencyBuffer = 25_000_00;
-  const safeToSpend = Math.max(checkingBalance + next14DayIncome - next14DayOutflows - emergencyBuffer, 0);
-  const reviewCount = REVIEW_ITEMS.length;
-  const recurringToVerify = SUBSCRIPTIONS.filter((subscription) => subscription.confidence < 0.97 || subscription.status !== "active");
-  const highestSubscription = [...SUBSCRIPTIONS]
-    .filter((subscription) => subscription.status === "active")
-    .sort((a, b) => b.amountOere - a.amountOere)[0];
-  const expenseTransactions = TRANSACTIONS.filter(
-    (transaction) => transaction.amountOere < 0 && transaction.category !== "Transfer",
-  );
-  const topCategory = Object.entries(
-    expenseTransactions.reduce<Record<string, number>>((acc, transaction) => {
-      const key = transaction.isSubscription ? "Subscriptions" : transaction.category;
-      acc[key] = (acc[key] ?? 0) + Math.abs(transaction.amountOere);
-      return acc;
-    }, {}),
-  ).sort((a, b) => b[1] - a[1])[0];
-  const monthPrefix = MOCK_TODAY.slice(0, 7);
-  const monthlyExpenses = TRANSACTIONS.filter(
-    (transaction) => transaction.date.startsWith(monthPrefix) && transaction.amountOere < 0 && transaction.category !== "Transfer",
-  );
-  const totalBudgetLimit = BUDGETS.reduce((sum, budget) => sum + budget.monthlyLimitOere, 0);
-  const spentAgainstBudget = monthlyExpenses.reduce((sum, transaction) => sum + Math.abs(transaction.amountOere), 0);
-  const goalContribution = GOALS.reduce((sum, goal) => sum + goal.monthlyContributionOere, 0);
-  const weekdayLabel = today.toLocaleDateString("da-DK", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const forecastChart = forecast.filter((_, index, arr) =>
-    index % 2 === 0 || index === arr.length - 1 || forecast[index] === forecastLowPoint,
-  );
-  const monthlyIncome = TRANSACTIONS
-    .filter((t) => t.date.startsWith(monthPrefix) && t.amountOere > 0)
-    .reduce((sum, t) => sum + t.amountOere, 0);
-  const monthlyNet = monthlyIncome - spentAgainstBudget;
-  const netWorthUp = NET_WORTH_CHANGE >= 0;
+  const topReviewItem = openItems[0];
 
-  const priorities = [
-    ...(expiredAccounts.length > 0
-      ? [
-          {
-            icon: <ShieldAlert size={16} />,
-            title: `${expiredAccounts.length} forbindelse${expiredAccounts.length > 1 ? "r" : ""} kræver handling`,
-            description: `${expiredAccounts.map((account) => account.institution).join(", ")} er udløbet og svækker dit daglige cash view.`,
-            href: "/review",
-            cta: "Åbn",
-          },
-        ]
-      : []),
-    {
-      icon: <CalendarClock size={16} />,
-      title: `${formatDKK(next7DayOutflows)} går ud de næste 7 dage`,
-      description: "Tjek at lønkontoen kan bære de planlagte træk, før de rammer.",
-      href: "/plan",
-      cta: "Se plan",
-    },
-    {
-      icon: <CreditCard size={16} />,
-      title: highestSubscription ? `${highestSubscription.merchant} er stadig tungeste abonnement` : "Ingen abonnementer kræver fokus",
-      description: highestSubscription
-        ? `${formatDKK(highestSubscription.amountOere)}/md er den største faste post at udfordre.`
-        : "Din recurring stack ser slank ud lige nu.",
-      href: "/review",
-      cta: "Gennemgå",
-    },
-  ].slice(0, 3);
+  const recentTransactions = [...TRANSACTIONS]
+    .sort((a, b) => b.date.localeCompare(a.date) || Math.abs(b.amountOere) - Math.abs(a.amountOere))
+    .slice(0, 7)
+    .map((t) => ({ ...t, account: ACCOUNTS.find((a) => a.id === t.accountId) }));
+
+  const rangeLeft = monthLabel(monthKeys[0] ?? "");
+  const rangeRight = monthLabel(monthKeys[monthKeys.length - 1] ?? "");
 
   return (
-    <div className="page-wrap">
-      <PageHeader
-        title="Overblik"
-        subtitle={`Det vigtigste lige nu pr. ${weekdayLabel}`}
-        action={
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 14px",
-              background: "var(--surface-2)",
-              border: "1px solid var(--border)",
-              borderRadius: 999,
-              fontSize: 12.5,
-              color: "var(--text-secondary)",
-              userSelect: "none",
-            }}
-            title="Hurtigt dagligt fokus med næste skridt"
-          >
-            <Sparkles size={13} />
-            Fokus i dag
-          </div>
-        }
-      />
+    <div className="page-wrap" style={{ paddingTop: 20 }}>
+      {/* Today — Figma node 20:994 */}
+      <section style={{ marginBottom: 36 }}>
+        <h1
+          style={{
+            margin: "0 0 16px",
+            fontSize: 28,
+            fontWeight: 700,
+            letterSpacing: "-0.02em",
+            color: "var(--text-primary)",
+          }}
+        >
+          Today
+        </h1>
+        <div style={{ borderTop: "1px solid var(--border)", marginBottom: 20 }} />
 
-      {expiredAccounts.length > 0 ? (
         <div
-          className="animate-fade-up anim-1"
+          className="stripe-today-layout"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(200px, 320px) minmax(0, 1fr) minmax(200px, 280px)",
+            gap: 0,
+            alignItems: "stretch",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-card)",
+            overflow: "hidden",
+            background: "var(--surface-1)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div style={{ padding: "20px 20px 24px", borderRight: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", gap: 48, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-muted)" }}>Money out</span>
+                  <ChevronDown size={12} strokeWidth={1.5} color="var(--grey-500)" />
+                </div>
+                <div className="font-metric" style={{ fontSize: 20, fontWeight: 400, color: "var(--grey-900)" }}>
+                  {formatKr(todaySpend)}
+                </div>
+                <div className="font-metric" style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>
+                  {new Date(`${MOCK_TODAY}T12:00:00`).toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                  })}
+                </div>
+              </div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-muted)" }}>Yesterday</span>
+                  <ChevronDown size={12} strokeWidth={1.5} color="var(--grey-500)" />
+                </div>
+                <div className="font-metric" style={{ fontSize: 16, fontWeight: 400, color: "var(--text-secondary)" }}>
+                  {formatKr(yesterdaySpend)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ padding: "16px 12px 8px", borderRight: "1px solid var(--border)", minWidth: 0 }}>
+            <div style={{ width: "100%", height: 120 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={hourlyData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="todayFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={CHART_BLUE_SOFT} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={CHART_BLUE_SOFT} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical stroke={CHART_GREY} horizontal={false} />
+                  <XAxis
+                    dataKey="hour"
+                    type="number"
+                    domain={[0, 23]}
+                    ticks={[0, 6, 12, 18, 23]}
+                    tickFormatter={(h) => `${`${h}`.padStart(2, "0")}:00`}
+                    tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: FIGMA_METRIC_FONT_STACK }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis hide domain={[0, "auto"]} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "#fff",
+                      border: "1px solid var(--border)",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontFamily: FIGMA_METRIC_FONT_STACK,
+                    }}
+                    formatter={(value: number) => [formatKr(value), "Cleared"]}
+                    labelFormatter={(h) => `${`${h}`.padStart(2, "0")}:00`}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="cumulative"
+                    stroke={CHART_BLUE}
+                    strokeWidth={2}
+                    fill="url(#todayFill)"
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <div
+              className="font-metric"
+              style={{
+                textAlign: "center",
+                fontSize: 11,
+                color: "var(--accent)",
+                fontWeight: 600,
+                marginTop: 4,
+              }}
+            >
+              Now, {`${nowHour}`.padStart(2, "0")}:00
+            </div>
+          </div>
+
+          <div style={{ padding: "20px 20px 24px", display: "grid", gap: 18 }}>
+            {activeAccounts.map((account) => (
+              <div key={account.id}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: "var(--text-muted)", marginBottom: 6 }}>
+                  {account.accountName}
+                </div>
+                <div className="font-metric" style={{ fontSize: 16, fontWeight: 400, color: "var(--grey-900)", marginBottom: 4 }}>
+                  {formatKr(account.balanceOere)}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>
+                  Cleared balance · {account.lastSynced}
+                </div>
+                <Button href={`/accounts?account=${account.id}`} variant="ghost" size="md" style={{ justifyContent: "flex-start", width: "fit-content" }}>
+                  View
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Reports overview */}
+      <section style={{ marginBottom: 28 }}>
+        <div
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            gap: 12,
-            padding: "12px 16px",
-            background: "rgba(204,51,20,0.08)",
-            border: "1px solid rgba(204,51,20,0.16)",
-            borderRadius: 18,
-            marginBottom: 24,
-            fontSize: 13,
-            color: "var(--red)",
+            gap: 16,
+            flexWrap: "wrap",
+            marginBottom: 20,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <AlertCircle size={14} flexShrink={0} />
-            <span>
-              <strong>{expiredAccounts.map((account) => account.institution).join(", ")}</strong> er udløbet — tal og forecast nedenfor er ufuldstændige.
-            </span>
-          </div>
-          <Link
-            href={`/accounts?focus=reconnect&account=${expiredAccounts[0]?.id}`}
+          <h2
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              fontSize: 12.5,
-              fontWeight: 600,
-              color: "var(--red)",
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-              flexShrink: 0,
+              margin: 0,
+              fontSize: 20,
+              fontWeight: 400,
+              color: "var(--text-primary)",
             }}
           >
-            Genopret <ArrowRight size={11} />
-          </Link>
-        </div>
-      ) : null}
-
-      <div className="animate-fade-up anim-2 grid-4" style={{ marginBottom: 24 }}>
-        <KpiCard
-          label="Trygt at bruge"
-          value={formatDKK(safeToSpend)}
-          rawValue={safeToSpend}
-          formatFn={(value) => formatDKK(Math.round(value))}
-          sub={`buffer på ${formatDKK(emergencyBuffer)}`}
-          accent
-        />
-        <KpiCard
-          label="Næste 7 dage"
-          value={formatDKK(next7DayOutflows)}
-          rawValue={next7DayOutflows}
-          formatFn={(value) => formatDKK(Math.round(value))}
-          sub={`${upcoming7Days.filter((event) => event.amountOere < 0).length} planlagte træk`}
-        />
-        <KpiCard
-          label="Formuetrend"
-          value={formatChange(NET_WORTH_CHANGE)}
-          rawValue={NET_WORTH_CHANGE}
-          formatFn={(value) => formatChange(Math.round(value))}
-          sub={`${formatPct(NET_WORTH_PCT)} · 90 dage`}
-        />
-        <KpiCard
-          label="Opgaver at rydde"
-          value={`${reviewCount}`}
-          rawValue={reviewCount}
-          formatFn={(value) => `${Math.round(value)}`}
-          sub={`${recurringToVerify.length} abonnementer at tjekke`}
-        />
-      </div>
-
-      <div className="animate-fade-up anim-3 grid-main" style={{ marginBottom: 24 }}>
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Start her</CardTitle>
-              <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                De få ting der flytter mest de næste dage.
-              </div>
-            </div>
-          </CardHeader>
-          <CardBody style={{ paddingTop: 4, paddingBottom: 4 }}>
-            {priorities.map((item) => (
-              <div
-                key={item.title}
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 12,
-                  padding: "14px 0",
-                  borderBottom: "1px solid var(--border)",
-                }}
-              >
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 12,
-                    background: "var(--surface-2)",
-                    border: "1px solid var(--border)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--text-secondary)",
-                    flexShrink: 0,
-                  }}
-                >
-                  {item.icon}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>{item.title}</div>
-                  <div style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>{item.description}</div>
-                </div>
-                <Link
-                  href={item.href}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    fontSize: 12.5,
-                    color: "var(--accent)",
-                    textDecoration: "none",
-                    flexShrink: 0,
-                  }}
-                >
-                  {item.cta} <ArrowRight size={12} />
-                </Link>
-              </div>
-            ))}
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Næste bevægelser</CardTitle>
-              <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Næste 14 dage · {upcoming14Days.filter(e => e.amountOere < 0).length} træk, {upcoming14Days.filter(e => e.amountOere > 0).length} indbetalinger
-              </div>
-            </div>
-            <Link href="/plan" style={{ fontSize: 12.5, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap" }}>
-              Se alle →
-            </Link>
-          </CardHeader>
-          <CardBody style={{ paddingTop: 4, paddingBottom: 4 }}>
-            {upcoming14Days.slice(0, 6).map((event) => (
-              <CashEventRow key={event.id} event={event} />
-            ))}
-          </CardBody>
-        </Card>
-      </div>
-
-      <div className="animate-fade-up anim-4" style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 16, marginBottom: 24 }}>
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Likviditet næste 3 uger</CardTitle>
-              <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Et kort forecast, så du ser lavpunktet før det bliver et problem.
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Wallet size={13} color="var(--accent)" />
-              <div style={{ textAlign: "right" }}>
-                <span className="num" style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>
-                  {formatDKK(projectedThreeWeeks)}
-                </span>
-                <div style={{ fontSize: 10, color: "var(--text-muted)" }}>om 21 dage</div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardBody style={{ paddingTop: 8 }}>
-            <ResponsiveContainer width="100%" height={250} className="chart-tall">
-              <AreaChart data={forecastChart} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="homeForecastFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#5749F4" stopOpacity={0.18} />
-                    <stop offset="100%" stopColor="#5749F4" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={formatShortDate}
-                  tick={{ fontSize: 10.5, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tickFormatter={formatAxisDKK}
-                  tick={{ fontSize: 10.5, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
-                  axisLine={false}
-                  tickLine={false}
-                  domain={[
-                    (min: number) => Math.round(min * 0.9),
-                    (max: number) => Math.round(max * 1.04),
-                  ]}
-                />
-                <Tooltip content={<ForecastTooltip />} />
-                <ReferenceLine
-                  x={MOCK_TODAY}
-                  stroke="var(--text-muted)"
-                  strokeDasharray="4 3"
-                  strokeWidth={1.5}
-                />
-                <ReferenceDot
-                  x={forecastLowPoint.date}
-                  y={forecastLowPoint.balanceOere}
-                  r={5}
-                  fill="var(--red)"
-                  stroke="var(--surface-1)"
-                  strokeWidth={2}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="balanceOere"
-                  stroke="#5749F4"
-                  strokeWidth={2.5}
-                  fill="url(#homeForecastFill)"
-                  dot={false}
-                  activeDot={{ r: 4, fill: "#5749F4", stroke: "var(--surface-1)", strokeWidth: 2 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-
-            <div className="grid-3" style={{ marginTop: 16 }}>
-              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "14px 16px" }}>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Lavpunkt</div>
-                <div className="num" style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}>
-                  {formatDKK(forecastLowPoint.balanceOere)}
-                </div>
-                <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-secondary)" }}>{formatLongDate(forecastLowPoint.date)}</div>
-              </div>
-              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "14px 16px" }}>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Største kategori</div>
-                <div style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}>{topCategory?.[0] ?? "Ingen data"}</div>
-                <div className="num" style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-secondary)" }}>
-                  {topCategory ? formatDKK(topCategory[1]) : "—"}
-                </div>
-              </div>
-              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "14px 16px" }}>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Datadækning</div>
-                <div style={{ fontSize: 18, fontWeight: 600, color: activeAccounts.length === ACCOUNTS.length ? "var(--green)" : "var(--text-primary)" }}>
-                  {activeAccounts.length}/{ACCOUNTS.length} aktive
-                </div>
-                <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-secondary)" }}>
-                  {expiredAccounts.length > 0 ? `${expiredAccounts.length} skal reconnectes` : "Alle feeds er sunde"}
-                </div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Vælg næste arbejdsspor</CardTitle>
-              <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Sæt retning — åbn et dedikeret arbejdsspor og gå i dybden.
-              </div>
-            </div>
-          </CardHeader>
-          <CardBody style={{ display: "grid", gap: 14 }}>
-            <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <Target size={14} color="var(--text-muted)" />
-                <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>Plan lige nu</span>
-              </div>
-              <div className="num" style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
-                {formatDKK(Math.max(totalBudgetLimit - spentAgainstBudget, 0))} tilbage
-              </div>
-              <div style={{ marginTop: 6, fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>
-                {((spentAgainstBudget / totalBudgetLimit) * 100).toFixed(1)}% af {formatDKK(totalBudgetLimit)} brugt · {formatDKK(goalContribution)}/md til mål
-              </div>
-              <Link href="/plan" style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, color: "var(--accent)", textDecoration: "none", fontSize: 12.5 }}>
-                Åbn plan <ArrowRight size={12} />
-              </Link>
-            </div>
-
-            <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                {netWorthUp ? <TrendingUp size={14} color="var(--green)" /> : <TrendingDown size={14} color="var(--red)" />}
-                <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>Gennemgå lige nu</span>
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>{reviewCount} ting venter</div>
-              <div style={{ marginTop: 6, fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>
-                {recurringToVerify.length} abonnementer skal vurderes, og {expiredAccounts.length} konto{expiredAccounts.length === 1 ? "" : "er"} skal tjekkes.
-              </div>
-              <Link href="/review" style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, color: "var(--accent)", textDecoration: "none", fontSize: 12.5 }}>
-                Åbn gennemgang <ArrowRight size={12} />
-              </Link>
-            </div>
-          </CardBody>
-        </Card>
-      </div>
-
-      <div className="animate-fade-up anim-5">
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>
-                {new Date(MOCK_TODAY).toLocaleDateString("da-DK", { month: "long" })} i tal
-              </CardTitle>
-              <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Hvad der er gået ind og ud på kontiene indtil nu denne måned.
-              </div>
-            </div>
+            Reports overview
+          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Button type="button" variant="secondary" size="sm" trailingIcon={<ChevronDown size={14} strokeWidth={1.5} />}>
+              Last 12 months
+            </Button>
+            <Button type="button" variant="secondary" size="sm" trailingIcon={<ChevronDown size={14} strokeWidth={1.5} />}>
+              Previous period
+            </Button>
             <span
-              className="num"
-              style={{ fontSize: 13, fontWeight: 600, color: monthlyNet >= 0 ? "var(--green)" : "var(--red)", whiteSpace: "nowrap" }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 14,
+                fontWeight: 500,
+                color: "var(--grey-600)",
+              }}
             >
-              {monthlyNet >= 0 ? "+" : ""}{formatDKK(monthlyNet)} netto
+              <CalendarDays size={14} strokeWidth={1.5} aria-hidden />
+              {rangeLeft} – {rangeRight}
             </span>
-          </CardHeader>
-          <CardBody className="grid-3">
-            <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "16px 18px" }}>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Indkomst</div>
-              <div className="num" style={{ fontSize: 20, fontWeight: 600, color: "var(--green)" }}>+{formatDKK(monthlyIncome)}</div>
-              <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)" }}>
-                {TRANSACTIONS.filter(t => t.date.startsWith(monthPrefix) && t.amountOere > 0).length} indbetalinger
-              </div>
+            <Button type="button" variant="secondary" size="sm" trailingIcon={<ChevronDown size={14} strokeWidth={1.5} />}>
+              Monthly
+            </Button>
+            <Button type="button" variant="secondary" size="sm" icon={<Settings size={14} strokeWidth={1.5} aria-hidden />}>
+              Edit charts
+            </Button>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gap: 16,
+          }}
+          className="stripe-report-grid"
+        >
+          <ReportCard
+            title="Total spend"
+            pct={pctChange(spendMar, spendFeb)}
+            primary={formatKr(spendMar)}
+            secondary={formatKr(spendFeb)}
+            current={spendSeries}
+            compare={spendCompare}
+            leftMonth={rangeLeft}
+            rightMonth={rangeRight}
+          />
+          <ReportCard
+            title="Primary accounts spend"
+            pct={pctChange(cardMar, cardFeb)}
+            primary={formatKr(cardMar)}
+            secondary={formatKr(cardFeb)}
+            current={cardSeries}
+            compare={cardCompare}
+            leftMonth={rangeLeft}
+            rightMonth={rangeRight}
+          />
+          <ReportCard
+            title="Net cash flow"
+            pct={pctChange(netMar, netFeb)}
+            primary={formatKr(netMar)}
+            secondary={formatKr(netFeb)}
+            current={netSeries}
+            compare={netCompare}
+            leftMonth={rangeLeft}
+            rightMonth={rangeRight}
+          />
+          <ReportCard
+            title="Income"
+            pct={pctChange(incomeMar, incomeFeb)}
+            primary={formatKr(incomeMar)}
+            secondary={formatKr(incomeFeb)}
+            current={incomeSeries}
+            compare={incomeCompare}
+            leftMonth={rangeLeft}
+            rightMonth={rangeRight}
+          />
+          <ReportCard
+            title="Transactions"
+            pct={pctChange(txMar, txFeb)}
+            primary={`${txMar} cleared`}
+            secondary={`${txFeb} prior`}
+            current={txSeries}
+            compare={txCompare}
+            leftMonth={rangeLeft}
+            rightMonth={rangeRight}
+          />
+          <ReportCard
+            title="Synced accounts"
+            pct={0}
+            primary={`${ACCOUNTS.filter((a) => a.status === "active").length} active`}
+            secondary={`${ACCOUNTS.filter((a) => a.status !== "active").length} need attention`}
+            current={accSeries}
+            compare={accCompare}
+            leftMonth={rangeLeft}
+            rightMonth={rangeRight}
+          />
+        </div>
+      </section>
+
+      {/* FinTrack insights (not in Figma — keeps product workflows) */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: 16,
+          marginBottom: 22,
+        }}
+        className="stripe-insight-grid"
+      >
+        <Card>
+          <CardBody style={{ display: "grid", gap: 10, paddingTop: 20, paddingBottom: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>Review inbox</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}>
+              {openItems.length} item{openItems.length === 1 ? "" : "s"} need attention
             </div>
-            <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "16px 18px" }}>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Udgifter</div>
-              <div className="num" style={{ fontSize: 20, fontWeight: 600, color: "var(--text-primary)" }}>{formatDKK(spentAgainstBudget)}</div>
-              <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)" }}>
-                {monthlyExpenses.length} posteringer
-              </div>
+            <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+              {topReviewItem ? topReviewItem.title : "Your review queue is clear for now."}
             </div>
-            <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "16px 18px" }}>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Til mål</div>
-              <div className="num" style={{ fontSize: 20, fontWeight: 600, color: "var(--text-primary)" }}>{formatDKK(goalContribution)}</div>
-              <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)" }}>
-                {GOALS.length} aktive mål
-              </div>
+            <Button href="/review" variant="ghost" size="md" style={{ fontWeight: 600, justifyContent: "flex-start", width: "fit-content" }}>
+              Open review
+            </Button>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardBody style={{ display: "grid", gap: 10, paddingTop: 20, paddingBottom: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>Projected low balance</div>
+            <div className="font-metric" style={{ fontSize: 20, fontWeight: 400, color: "var(--grey-900)" }}>
+              {formatKr(forecastLowPoint.balanceOere)}
             </div>
+            <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+              Lowest point in the next 30-day projection ({forecastLowPoint.date}).
+            </div>
+            <Button href="/plan" variant="ghost" size="md" style={{ fontWeight: 600, justifyContent: "flex-start", width: "fit-content" }}>
+              Open plan
+            </Button>
           </CardBody>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Recent transactions</CardTitle>
+            <div style={{ marginTop: 6, fontSize: 14, color: "var(--text-secondary)" }}>Latest cleared activity</div>
+          </div>
+          <Button href="/transactions?period=month" variant="ghost" size="md" style={{ whiteSpace: "nowrap" }}>
+            See all
+          </Button>
+        </CardHeader>
+        <CardBody style={{ paddingTop: 8 }}>
+          <div className="table-scroll">
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
+              <thead>
+                <tr>
+                  {["Description", "Account", "Date", "Amount", ""].map((heading) => (
+                    <th
+                      key={heading || "actions"}
+                      style={{
+                        textAlign: heading === "Amount" ? "right" : "left",
+                        padding: "10px 0",
+                        borderBottom: "1px solid var(--border)",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recentTransactions.map((transaction) => {
+                  const positive = transaction.amountOere > 0;
+                  return (
+                    <tr key={transaction.id}>
+                      <td style={{ padding: "14px 0", borderBottom: "1px solid var(--border)" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                          <MerchantLogo merchant={transaction.merchant} size={30} radius={10} />
+                          <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-primary)" }}>
+                            {transaction.merchant}
+                          </span>
+                        </div>
+                      </td>
+                      <td
+                        style={{
+                          padding: "14px 0",
+                          borderBottom: "1px solid var(--border)",
+                          fontSize: 14,
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        {transaction.account?.accountName ?? "—"}
+                      </td>
+                      <td
+                        className="font-metric"
+                        style={{
+                          padding: "14px 0",
+                          borderBottom: "1px solid var(--border)",
+                          fontSize: 14,
+                          fontWeight: 400,
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        {transaction.date}
+                      </td>
+                      <td
+                        className="font-metric"
+                        style={{
+                          padding: "14px 0",
+                          borderBottom: "1px solid var(--border)",
+                          textAlign: "right",
+                          fontSize: 14,
+                          fontWeight: 500,
+                          color: positive ? "var(--green)" : "var(--text-primary)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {positive ? "+" : "-"}
+                        {formatKr(Math.abs(transaction.amountOere))}
+                      </td>
+                      <td style={{ padding: "14px 0 14px 12px", borderBottom: "1px solid var(--border)", textAlign: "right" }}>
+                        <Link
+                          href={`/transactions?period=month&tx=${transaction.id}`}
+                          style={{
+                            color: "var(--text-muted)",
+                            textDecoration: "none",
+                            fontSize: 16,
+                            fontWeight: 700,
+                          }}
+                        >
+                          ...
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardBody>
+      </Card>
+
     </div>
   );
 }

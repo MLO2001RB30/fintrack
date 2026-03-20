@@ -388,53 +388,59 @@ export interface ReviewItem {
   severity: "high" | "medium" | "low";
   href: string;
   cta: string;
+  merchant?: string;
+  accountId?: string;
 }
 
 export const REVIEW_ITEMS: ReviewItem[] = [
   {
     id: "review-lunar",
-    title: "Genopret Lunar-forbindelsen",
-    description: "Forbindelsen er udløbet, så forecast og seneste poster er mindre troværdige.",
+    title: "Reconnect the Lunar connection",
+    description: "The connection has expired, so forecasts and recent transactions are less trustworthy.",
     type: "account",
     severity: "high",
     href: "/accounts?focus=reconnect&account=acc-4",
-    cta: "Genopret",
+    cta: "Reconnect",
+    accountId: "acc-4",
   },
   {
     id: "review-adobe",
-    title: "Vurder Adobe CC",
-    description: "Adobe CC er din dyreste faste post og bør have en aktiv beslutning bag sig.",
+    title: "Review Adobe CC",
+    description: "Adobe CC is your most expensive recurring charge and should have an explicit decision behind it.",
     type: "subscription",
     severity: "high",
     href: "/subscriptions",
-    cta: "Åbn",
+    cta: "Open",
+    merchant: "Adobe CC",
   },
   {
     id: "review-disney",
-    title: "Afklar Disney+",
-    description: "Bekræft om den fortsat skal stå som pausede faste omkostninger eller helt fjernes.",
+    title: "Decide on Disney+",
+    description: "Confirm whether it should remain a paused recurring cost or be removed entirely.",
     type: "subscription",
     severity: "medium",
     href: "/subscriptions",
-    cta: "Gennemgå",
+    cta: "Review",
+    merchant: "Disney+",
   },
   {
     id: "review-zalando",
-    title: "Tjek større køb hos Zalando",
-    description: "Det er månedens største ikke-faste køb og et godt sted at afklare om kategoriseringen er rigtig.",
+    title: "Inspect the larger Zalando purchase",
+    description: "It is the largest non-recurring purchase this month and a good place to confirm the categorization.",
     type: "transaction",
     severity: "medium",
     href: "/transactions?review=merchant&merchant=Zalando",
-    cta: "Undersøg",
+    cta: "Inspect",
+    merchant: "Zalando",
   },
   {
     id: "review-transfer",
-    title: "Afklar interne overførsler",
-    description: "Overførsler til opsparing bør skjules fra forbrugsvisningen, når de er bekræftet som interne.",
+    title: "Confirm internal transfers",
+    description: "Transfers into savings should be hidden from the spending view once they are confirmed as internal.",
     type: "merchant",
     severity: "low",
     href: "/transactions?review=transfer",
-    cta: "Tjek",
+    cta: "Check",
   },
 ];
 
@@ -452,6 +458,12 @@ export interface Transaction {
 }
 
 export const TRANSACTIONS: Transaction[] = [
+  { id: "tx-33", date: "2026-03-19", merchant: "Irma",               accountId: "acc-1", amountOere: -42300,   category: "Groceries",    isSubscription: false },
+  { id: "tx-34", date: "2026-03-19", merchant: "Rejsekort",          accountId: "acc-1", amountOere: -2400,    category: "Transport",    isSubscription: false },
+  { id: "tx-35", date: "2026-03-19", merchant: "Espresso House",     accountId: "acc-3", amountOere: -5200,    category: "Food",         isSubscription: false },
+  { id: "tx-36", date: "2026-03-18", merchant: "Føtex",              accountId: "acc-1", amountOere: -51200,   category: "Groceries",    isSubscription: false },
+  { id: "tx-37", date: "2026-03-18", merchant: "Apoteket",           accountId: "acc-1", amountOere: -18900,   category: "Health",       isSubscription: false },
+  { id: "tx-38", date: "2026-03-18", merchant: "Circle K",           accountId: "acc-3", amountOere: -36800,   category: "Transport",    isSubscription: false },
   { id: "tx-1",  date: "2026-03-17", merchant: "Netflix",            accountId: "acc-1", amountOere: -14900,   category: "Streaming",    isSubscription: true,  subscriptionId: "sub-1" },
   { id: "tx-2",  date: "2026-03-17", merchant: "Netto",              accountId: "acc-1", amountOere: -34200,   category: "Groceries",    isSubscription: false },
   { id: "tx-3",  date: "2026-03-16", merchant: "Lønoverførsel",      accountId: "acc-1", amountOere: 4_200_000, category: "Income",      isSubscription: false },
@@ -472,6 +484,18 @@ export const TRANSACTIONS: Transaction[] = [
   { id: "tx-18", date: "2026-03-05", merchant: "Fitness World",      accountId: "acc-3", amountOere: -24900,   category: "Health",       isSubscription: false },
   { id: "tx-19", date: "2026-03-04", merchant: "Zalando",            accountId: "acc-1", amountOere: -89900,   category: "Shopping",     isSubscription: false },
   { id: "tx-20", date: "2026-03-03", merchant: "Nets — El",          accountId: "acc-1", amountOere: -53200,   category: "Utilities",    isSubscription: false },
+  { id: "tx-21", date: "2026-02-27", merchant: "Lønoverførsel",      accountId: "acc-1", amountOere: 4_150_000, category: "Income",      isSubscription: false },
+  { id: "tx-22", date: "2026-02-26", merchant: "Netto",              accountId: "acc-1", amountOere: -31500,   category: "Groceries",    isSubscription: false },
+  { id: "tx-23", date: "2026-02-24", merchant: "Føtex",              accountId: "acc-1", amountOere: -22600,   category: "Groceries",    isSubscription: false },
+  { id: "tx-24", date: "2026-02-23", merchant: "Adobe CC",           accountId: "acc-1", amountOere: -72900,   category: "Software",     isSubscription: true,  subscriptionId: "sub-3" },
+  { id: "tx-25", date: "2026-02-21", merchant: "Shell",              accountId: "acc-3", amountOere: -40100,   category: "Transport",    isSubscription: false },
+  { id: "tx-26", date: "2026-02-20", merchant: "Spotify",            accountId: "acc-1", amountOere: -9900,    category: "Music",        isSubscription: true,  subscriptionId: "sub-2" },
+  { id: "tx-27", date: "2026-02-18", merchant: "Nets — El",          accountId: "acc-1", amountOere: -48100,   category: "Utilities",    isSubscription: false },
+  { id: "tx-28", date: "2026-02-16", merchant: "Zalando",            accountId: "acc-1", amountOere: -75600,   category: "Shopping",     isSubscription: false },
+  { id: "tx-29", date: "2026-02-14", merchant: "Just Eat",           accountId: "acc-1", amountOere: -14300,   category: "Food",         isSubscription: false },
+  { id: "tx-30", date: "2026-02-12", merchant: "TV 2 Play",          accountId: "acc-3", amountOere: -14900,   category: "Streaming",    isSubscription: true,  subscriptionId: "sub-6" },
+  { id: "tx-31", date: "2026-02-10", merchant: "Matas",              accountId: "acc-1", amountOere: -10700,   category: "Health",       isSubscription: false },
+  { id: "tx-32", date: "2026-02-08", merchant: "ChatGPT Plus",       accountId: "acc-1", amountOere: -13500,   category: "AI",           isSubscription: true,  subscriptionId: "sub-5" },
 ];
 
 // ─── Investments ──────────────────────────────────────────────────────────────

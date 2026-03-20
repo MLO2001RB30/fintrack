@@ -1,16 +1,19 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, Building2, CreditCard, ScanSearch, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertTriangle, ArrowRight, Building2, CheckCircle2, CreditCard, ScanSearch, Sparkles } from "lucide-react";
 import Link from "next/link";
 import {
   ACCOUNTS,
   formatDKK,
+  MOCK_TODAY,
   monthlyEquivalent,
-  REVIEW_ITEMS,
   SUBSCRIPTIONS,
   TRANSACTIONS,
 } from "@/lib/mock-data";
+import { useReviewQueue } from "@/lib/use-review-queue";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { MerchantLogo } from "@/components/ui/merchant-logo";
@@ -32,13 +35,59 @@ function severityBadge(severity: "high" | "medium" | "low") {
 function severityLabel(severity: "high" | "medium" | "low") {
   switch (severity) {
     case "high":
-      return "Høj";
+      return "High";
     case "medium":
-      return "Mellem";
+      return "Medium";
     case "low":
-      return "Lav";
+      return "Low";
     default:
-      return "Lav";
+      return "Low";
+  }
+}
+
+function formatShortDate(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatReviewTimestamp(value: string | null) {
+  if (!value) {
+    return "No decisions yet";
+  }
+
+  const updated = new Date(value);
+  const today = new Date(`${MOCK_TODAY}T00:00:00`);
+  const diffDays = Math.max(Math.round((today.getTime() - updated.getTime()) / 86_400_000), 0);
+
+  if (diffDays === 0) {
+    return "Updated today";
+  }
+
+  if (diffDays === 1) {
+    return "Updated yesterday";
+  }
+
+  return `Updated ${diffDays} days ago`;
+}
+
+function queueStatusBadge(status: "open" | "snoozed" | "resolved") {
+  switch (status) {
+    case "resolved":
+      return "active";
+    case "snoozed":
+      return "paused";
+    default:
+      return "error";
+  }
+}
+
+function queueStatusLabel(status: "open" | "snoozed" | "resolved") {
+  switch (status) {
+    case "resolved":
+      return "Resolved";
+    case "snoozed":
+      return "Snoozed";
+    default:
+      return "Open";
   }
 }
 
@@ -57,10 +106,11 @@ function ReviewAction({
       style={{
         display: "block",
         textDecoration: "none",
-        background: "var(--surface-2)",
+        background: "#ffffff",
         border: "1px solid var(--border)",
-        borderRadius: 18,
+        borderRadius: "var(--radius-card)",
         padding: "16px 18px",
+        boxShadow: "var(--shadow-sm)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -75,9 +125,10 @@ function ReviewAction({
 }
 
 export function ReviewPage() {
-  const reviewQueue = REVIEW_ITEMS;
+  const [filter, setFilter] = useState<"open" | "snoozed" | "resolved">("open");
+  const { items, openItems, snoozedItems, resolvedItems, persistenceMode, snoozeItem, resolveItem, reopenItem } =
+    useReviewQueue();
   const accountIssues = ACCOUNTS.filter((account) => account.status !== "active");
-  const recurringToVerify = SUBSCRIPTIONS.filter((subscription) => subscription.confidence < 0.97 || subscription.status !== "active");
   const highestCostSubscriptions = [...SUBSCRIPTIONS]
     .sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a))
     .slice(0, 5);
@@ -87,14 +138,24 @@ export function ReviewPage() {
     .sort((a, b) => Math.abs(b.amountOere) - Math.abs(a.amountOere))
     .slice(0, 5);
   const possibleMonthlySavings = highestCostSubscriptions
-    .filter((subscription) => ["Adobe CC", "Disney+"].includes(subscription.merchant))
+    .filter(
+      (subscription) =>
+        openItems.some((item) => item.type === "subscription" && item.merchant === subscription.merchant),
+    )
     .reduce((sum, subscription) => sum + monthlyEquivalent(subscription), 0);
+  const visibleQueue = filter === "open" ? openItems : filter === "snoozed" ? snoozedItems : resolvedItems;
+  const latestDecisionAt = useMemo(() => {
+    return items
+      .map((item) => item.updatedAt)
+      .filter((value): value is string => Boolean(value))
+      .sort((left, right) => right.localeCompare(left))[0] ?? null;
+  }, [items]);
 
   return (
     <div className="page-wrap">
       <PageHeader
-        title="Gennemgå"
-        subtitle="Ryd op i faste udgifter, datakilder og klassificeringer, så resten af appen bliver mere troværdig."
+        title="Review"
+        subtitle={`Keep forecasts, recurring costs, and categories trustworthy. ${openItems.length} item${openItems.length === 1 ? "" : "s"} are ready for action now.`}
         action={
           <div
             style={{
@@ -110,41 +171,39 @@ export function ReviewPage() {
               userSelect: "none",
             }}
           >
-            <ScanSearch size={13} />
-            Ugentlig rutine
+            {persistenceMode === "remote" ? <CheckCircle2 size={13} /> : <ScanSearch size={13} />}
+            {persistenceMode === "remote" ? "Synced review queue" : "Saved on this device"}
           </div>
         }
       />
 
       <div className="animate-fade-up anim-1 grid-4" style={{ marginBottom: 24 }}>
         <KpiCard
-          label="Klar til gennemgang"
-          value={`${reviewQueue.length}`}
-          rawValue={reviewQueue.length}
+          label="Open now"
+          value={`${openItems.length}`}
+          rawValue={openItems.length}
           formatFn={(value) => `${Math.round(value)}`}
-          sub="kræver stillingtagen"
+          sub="ready for action"
           accent
         />
         <KpiCard
-          label="Mulig besparelse"
+          label="Possible savings"
           value={formatDKK(possibleMonthlySavings)}
           rawValue={possibleMonthlySavings}
           formatFn={(value) => formatDKK(Math.round(value))}
-          sub="månedligt potentiale"
+          sub="from open subscription reviews"
         />
         <KpiCard
-          label="Konti at tjekke"
-          value={`${accountIssues.length}`}
-          rawValue={accountIssues.length}
+          label="Snoozed"
+          value={`${snoozedItems.length}`}
+          rawValue={snoozedItems.length}
           formatFn={(value) => `${Math.round(value)}`}
-          sub="forbindelser uden fuld tillid"
+          sub="return later"
         />
         <KpiCard
-          label="Faste poster at vurdere"
-          value={`${recurringToVerify.length}`}
-          rawValue={recurringToVerify.length}
-          formatFn={(value) => `${Math.round(value)}`}
-          sub="lav tillid eller ikke-aktive"
+          label="Freshness"
+          value={formatReviewTimestamp(latestDecisionAt)}
+          sub={`${resolvedItems.length} resolved decisions captured`}
         />
       </div>
 
@@ -152,14 +211,54 @@ export function ReviewPage() {
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Start med dette</CardTitle>
+              <CardTitle>Working queue</CardTitle>
               <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                De ting der giver mest tillid tilbage til forecast, kategorier og faste omkostninger.
+                Track what is open now, what you parked for later, and what already has a decision behind it.
               </div>
             </div>
           </CardHeader>
           <CardBody style={{ paddingTop: 4, paddingBottom: 4 }}>
-            {reviewQueue.map((item) => (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+              {[
+                { id: "open" as const, label: `Open (${openItems.length})` },
+                { id: "snoozed" as const, label: `Snoozed (${snoozedItems.length})` },
+                { id: "resolved" as const, label: `Resolved (${resolvedItems.length})` },
+              ].map((option) => {
+                const active = filter === option.id;
+
+                return (
+                  <Button
+                    key={option.id}
+                    type="button"
+                    variant="secondary"
+                    size="md"
+                    onClick={() => setFilter(option.id)}
+                    style={{
+                      borderRadius: 999,
+                      padding: "8px 14px",
+                      fontWeight: 600,
+                      fontSize: 12.5,
+                      ...(active
+                        ? {
+                            background: "var(--accent-glow)",
+                            border: "1px solid var(--accent-border)",
+                            color: "var(--accent)",
+                            boxShadow: "none",
+                          }
+                        : {
+                            color: "var(--grey-600)",
+                            background: "var(--surface-2)",
+                            boxShadow: "none",
+                            border: "1px solid var(--border)",
+                          }),
+                    }}
+                  >
+                    {option.label}
+                  </Button>
+                );
+              })}
+            </div>
+            {visibleQueue.map((item) => (
               <div
                 key={item.id}
                 style={{
@@ -175,8 +274,8 @@ export function ReviewPage() {
                     width: 38,
                     height: 38,
                     borderRadius: 12,
-                    background: item.severity === "high" ? "rgba(204,51,20,0.08)" : "var(--surface-2)",
-                    border: `1px solid ${item.severity === "high" ? "rgba(204,51,20,0.12)" : "var(--border)"}`,
+                    background: item.severity === "high" ? "var(--danger-bg)" : "var(--surface-2)",
+                    border: `1px solid ${item.severity === "high" ? "var(--danger-border)" : "var(--border)"}`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -190,39 +289,67 @@ export function ReviewPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{item.title}</span>
                     <Badge variant={severityBadge(item.severity)}>{severityLabel(item.severity)}</Badge>
+                    <Badge variant={queueStatusBadge(item.status)}>{queueStatusLabel(item.status)}</Badge>
                   </div>
                   <div style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>{item.description}</div>
+                  <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--text-muted)" }}>
+                    {item.status === "snoozed" && item.snoozedUntil
+                      ? `Returns to the queue on ${formatShortDate(item.snoozedUntil)}.`
+                      : item.updatedAt
+                        ? formatReviewTimestamp(item.updatedAt)
+                        : "No action recorded yet."}
+                  </div>
                 </div>
-                <Link
-                  href={item.href}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    fontSize: 12.5,
-                    color: "var(--accent)",
-                    textDecoration: "none",
-                    flexShrink: 0,
-                  }}
-                >
-                  {item.cta} <ArrowRight size={12} />
-                </Link>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <Button
+                    href={item.href}
+                    variant="ghost"
+                    size="md"
+                    trailingIcon={<ArrowRight size={12} strokeWidth={1.5} />}
+                    style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 500 }}
+                  >
+                    {item.cta}
+                  </Button>
+                  {item.status === "open" ? (
+                    <>
+                      <Button type="button" variant="secondary" size="md" onClick={() => void snoozeItem(item.id)} style={{ fontWeight: 600, fontSize: 12 }}>
+                        Snooze 7d
+                      </Button>
+                      <Button type="button" variant="success" size="md" onClick={() => void resolveItem(item.id)} style={{ fontWeight: 600, fontSize: 12 }}>
+                        Resolve
+                      </Button>
+                    </>
+                  ) : (
+                    <Button type="button" variant="secondary" size="md" onClick={() => void reopenItem(item.id)} style={{ fontWeight: 600, fontSize: 12 }}>
+                      Reopen
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
+            {visibleQueue.length === 0 ? (
+              <div style={{ padding: "18px 0 8px", fontSize: 13, color: "var(--text-secondary)" }}>
+                {filter === "open"
+                  ? "No open review items right now."
+                  : filter === "snoozed"
+                    ? "Nothing is snoozed right now."
+                    : "No resolved items yet."}
+              </div>
+            ) : null}
           </CardBody>
         </Card>
 
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Faste udgifter</CardTitle>
+              <CardTitle>Recurring costs</CardTitle>
               <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Start med de største poster og alt det, systemet er mindst sikker på.
+                Start with the largest items and anything the system is least certain about.
               </div>
             </div>
-            <Link href="/subscriptions" style={{ fontSize: 12.5, color: "var(--accent)", textDecoration: "none" }}>
-              Se alle →
-            </Link>
+            <Button href="/subscriptions" variant="ghost" size="md" style={{ fontSize: 12.5, fontWeight: 500 }}>
+              See all →
+            </Button>
           </CardHeader>
           <CardBody style={{ display: "grid", gap: 12 }}>
             {highestCostSubscriptions.map((subscription) => {
@@ -238,7 +365,7 @@ export function ReviewPage() {
                     gap: 12,
                     background: "var(--surface-2)",
                     border: "1px solid var(--border)",
-                    borderRadius: 18,
+                    borderRadius: "var(--radius-card)",
                     padding: "14px 16px",
                   }}
                 >
@@ -247,19 +374,22 @@ export function ReviewPage() {
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>{subscription.merchant}</span>
                       <Badge variant={subscription.status === "active" ? "monthly" : subscription.status === "paused" ? "paused" : "cancelled"}>
-                        {subscription.status === "active" ? "aktiv" : subscription.status === "paused" ? "pause" : "annulleret"}
+                        {subscription.status === "active" ? "active" : subscription.status === "paused" ? "paused" : "cancelled"}
                       </Badge>
+                      {items.some((item) => item.type === "subscription" && item.merchant === subscription.merchant && item.status === "open") ? (
+                        <Badge variant="error">needs review</Badge>
+                      ) : null}
                     </div>
                     <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-                      Sikkerhed {Math.round(subscription.confidence * 100)}% · {subscription.category}
+                      Confidence {Math.round(subscription.confidence * 100)}% · {subscription.category}
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div className="num" style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>
+                    <div className="font-metric" style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>
                       {formatDKK(monthly)}
                     </div>
                     <div style={{ marginTop: 4 }}>
-                      <Badge variant={confidenceVariant}>{Math.round(subscription.confidence * 100)}% sikker</Badge>
+                      <Badge variant={confidenceVariant}>{Math.round(subscription.confidence * 100)}% confidence</Badge>
                     </div>
                   </div>
                 </div>
@@ -273,14 +403,14 @@ export function ReviewPage() {
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Køb der bør tjekkes</CardTitle>
+              <CardTitle>Purchases to inspect</CardTitle>
               <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Større eller atypiske køb, som er værd at forstå bedre eller kategorisere skarpere.
+                Larger or unusual purchases that are worth understanding better or categorizing more sharply.
               </div>
             </div>
-            <Link href="/transactions" style={{ fontSize: 12.5, color: "var(--accent)", textDecoration: "none" }}>
-              Se poster →
-            </Link>
+            <Button href="/transactions" variant="ghost" size="md" style={{ fontSize: 12.5, fontWeight: 500 }}>
+              Open transactions →
+            </Button>
           </CardHeader>
           <CardBody style={{ paddingTop: 4, paddingBottom: 4 }}>
             {merchantChecks.map((transaction) => (
@@ -298,10 +428,10 @@ export function ReviewPage() {
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>{transaction.merchant}</div>
                   <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)" }}>
-                    {new Date(transaction.date).toLocaleDateString("da-DK", { day: "numeric", month: "short" })} · {transaction.category}
+                    {new Date(transaction.date).toLocaleDateString("en-US", { day: "numeric", month: "short" })} · {transaction.category}
                   </div>
                 </div>
-                <div className="num" style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>
+                <div className="font-metric" style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>
                   {formatDKK(transaction.amountOere)}
                 </div>
               </div>
@@ -312,9 +442,9 @@ export function ReviewPage() {
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Datakvalitet</CardTitle>
+              <CardTitle>Data quality</CardTitle>
               <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Forbindelser og regler der afgør, om resten af appen er til at stole på.
+                Connections and rules that determine whether the rest of the app can be trusted.
               </div>
             </div>
           </CardHeader>
@@ -325,7 +455,7 @@ export function ReviewPage() {
                 style={{
                   background: "var(--surface-2)",
                   border: "1px solid var(--border)",
-                  borderRadius: 18,
+                  borderRadius: "var(--radius-card)",
                   padding: "14px 16px",
                 }}
               >
@@ -337,18 +467,23 @@ export function ReviewPage() {
                   <Badge variant={account.status === "expired" ? "expired" : "error"}>{account.status}</Badge>
                 </div>
                 <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                  Sidst opdateret {account.lastSynced}. Forecast og spending-analyser bliver svagere uden en aktiv forbindelse.
+                  Last updated {account.lastSynced}. Forecasts and spending analysis get weaker without an active connection.
                 </div>
+                {openItems.some((item) => item.type === "account" && item.accountId === account.id) ? (
+                  <div style={{ marginTop: 8 }}>
+                    <Badge variant="error">still open in review</Badge>
+                  </div>
+                ) : null}
               </div>
             ))}
 
-            <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "14px 16px" }}>
+            <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", padding: "14px 16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                 <Sparkles size={14} color="var(--text-muted)" />
-                <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>Regelhygiejne</span>
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>Rule hygiene</span>
               </div>
               <div style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>
-                Interne overførsler bør skjules fra spend view, så budgetter og review-køen bliver mere præcise.
+                Internal transfers should stay out of the spend view so budgets and the review queue remain more accurate.
               </div>
             </div>
           </CardBody>
@@ -360,24 +495,24 @@ export function ReviewPage() {
           <CardHeader>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Sparkles size={14} color="var(--text-muted)" />
-              <CardTitle>Fortsæt i detaljen</CardTitle>
+              <CardTitle>Keep going</CardTitle>
             </div>
           </CardHeader>
           <CardBody className="grid-3">
             <ReviewAction
-              href="/subscriptions"
-              title="Skær i faste udgifter"
-              description="Gå direkte til abonnementer og beslut hvad der skal væk, pauses eller genforhandles."
+              href={openItems.find((item) => item.type === "subscription")?.href ?? "/subscriptions"}
+              title="Cut recurring costs"
+              description="Jump straight into subscriptions and decide what should be cancelled, paused, or renegotiated."
             />
             <ReviewAction
-              href="/transactions?review=transfer"
-              title="Gennemgå klassificeringer"
-              description="Start med interne overførsler og merchant-tjek i en fokuseret gennemgangsvisning."
+              href={openItems.find((item) => item.type === "merchant" || item.type === "transaction")?.href ?? "/transactions?review=transfer"}
+              title="Review classifications"
+              description="Start with internal transfers and merchant checks in a focused review flow."
             />
             <ReviewAction
-              href="/accounts?focus=reconnect&account=acc-4"
-              title="Genopret datakilder"
-              description="Sørg for at konti og forbindelser er ajour, før du bruger tallene andre steder."
+              href={openItems.find((item) => item.type === "account")?.href ?? "/accounts?focus=reconnect&account=acc-4"}
+              title="Reconnect data sources"
+              description="Make sure accounts and connections are current before relying on the numbers elsewhere."
             />
           </CardBody>
         </Card>

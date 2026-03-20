@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -7,16 +7,22 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-plex-mono",
+});
+
 export const metadata: Metadata = {
-  title: "FinTrack — Personal Finance",
-  description: "One source of truth for your finances",
+  title: "Fintrack",
+  description: "Personal finance cockpit",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
+    <html lang="en" className={`${inter.variable} ${ibmPlexMono.variable} h-full`}>
       <body className={`${inter.className} h-full`}>{children}</body>
     </html>
   );

@@ -27,7 +27,7 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
           style={{
             width: 56,
             height: 56,
-            borderRadius: 14,
+            borderRadius: "var(--radius-card)",
             background: "var(--surface-2)",
             border: "1px solid var(--border)",
             display: "flex",

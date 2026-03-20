@@ -78,7 +78,7 @@ export function MerchantLogo({
         width: size,
         height: size,
         borderRadius: radius,
-        background: "#fff",
+        background: "rgba(255, 255, 255, 0.96)",
         border: "1px solid var(--border)",
         display: "flex",
         alignItems: "center",

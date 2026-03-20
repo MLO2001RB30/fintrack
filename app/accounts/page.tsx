@@ -11,10 +11,11 @@ type AccountsRouteProps = {
 export default async function Page({ searchParams }: AccountsRouteProps) {
   const params = await searchParams;
   const initialReconnectId = params.focus === "reconnect" ? params.account ?? null : null;
+  const initialAccountId = params.account ?? null;
 
   return (
     <AppShell>
-      <AccountsPage initialReconnectId={initialReconnectId} />
+      <AccountsPage initialReconnectId={initialReconnectId} initialAccountId={initialAccountId} />
     </AppShell>
   );
 }

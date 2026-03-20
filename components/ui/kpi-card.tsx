@@ -31,8 +31,8 @@ export function KpiCard({
 }: KpiCardProps) {
   const canAnimate = rawValue !== undefined && formatFn !== undefined;
   const metaColor = accent ? "var(--accent)" : "var(--text-muted)";
-  const cardBackground = accent ? "rgba(87,73,244,0.04)" : "var(--surface-2)";
-  const cardBorder = accent ? "rgba(87,73,244,0.16)" : "var(--border)";
+  const cardBackground = "var(--surface-1)";
+  const cardBorder = accent ? "var(--accent-border)" : "var(--border)";
 
   return (
     <div
@@ -40,11 +40,11 @@ export function KpiCard({
       style={{
         background: cardBackground,
         border: `1px solid ${cardBorder}`,
-        borderRadius: 24,
-        padding: "20px 22px",
+        borderRadius: "var(--radius-card)",
+        padding: "18px 18px 16px",
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 12,
         position: "relative",
         overflow: "hidden",
         boxShadow: "var(--shadow-sm)",
@@ -53,8 +53,9 @@ export function KpiCard({
       <span
         style={{
           fontSize: 11,
-          fontWeight: 500,
-          letterSpacing: "-0.01em",
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
           color: metaColor,
           display: "block",
         }}
@@ -63,13 +64,12 @@ export function KpiCard({
       </span>
 
       <span
-        className="num"
+        className="font-metric"
         style={{
-          fontSize: 34,
-          fontWeight: 500,
-          color: "var(--text-primary)",
+          fontSize: 24,
+          fontWeight: 400,
+          color: "var(--grey-900)",
           lineHeight: 1.1,
-          letterSpacing: "-0.04em",
           display: "block",
         }}
       >
@@ -78,6 +78,7 @@ export function KpiCard({
             value={rawValue!}
             format={formatFn!}
             delay={animDelay}
+            className="font-metric"
           />
         ) : (
           value
@@ -104,16 +105,16 @@ export function KpiCard({
               <span
                 style={{
                   fontSize: 11.5,
-                  fontWeight: 500,
+                  fontWeight: 600,
                   color: accent
                     ? "var(--accent)"
                     : changePositive
                     ? "var(--green)"
                     : "var(--red)",
-                  background: accent ? "rgba(87,73,244,0.08)" : "var(--surface-1)",
-                  border: `1px solid ${accent ? "rgba(87,73,244,0.12)" : "var(--border)"}`,
+                  background: accent ? "var(--accent-glow)" : "var(--surface-2)",
+                  border: `1px solid ${accent ? "var(--accent-border)" : "var(--border)"}`,
                   borderRadius: 999,
-                  padding: "4px 10px",
+                  padding: "5px 10px",
                 }}
               >
                 {change}
@@ -124,11 +125,12 @@ export function KpiCard({
             <span
               style={{
                 fontSize: 11.5,
+                fontWeight: 600,
                 color: "var(--text-secondary)",
-                background: "var(--surface-1)",
+                background: "var(--surface-2)",
                 border: "1px solid var(--border)",
                 borderRadius: 999,
-                padding: "4px 10px",
+                padding: "5px 10px",
               }}
             >
               {sub}

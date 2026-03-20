@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowRight, CalendarClock, Target, Wallet } from "lucide-react";
 import Link from "next/link";
@@ -16,7 +17,9 @@ import {
   TRANSACTIONS,
   type CashFlowForecastPoint,
 } from "@/lib/mock-data";
+import { FIGMA_METRIC_FONT_STACK } from "@/lib/typography";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -37,12 +40,18 @@ type BudgetRow = {
   essential: boolean;
 };
 
+function addMonthsToIso(iso: string, months: number) {
+  const date = new Date(`${iso}T00:00:00`);
+  date.setMonth(date.getMonth() + months);
+  return date.toISOString().slice(0, 10);
+}
+
 function formatShortDate(iso: string) {
-  return new Date(iso).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
+  return new Date(iso).toLocaleDateString("en-US", { day: "numeric", month: "short" });
 }
 
 function formatLongDate(iso: string) {
-  return new Date(iso).toLocaleDateString("da-DK", {
+  return new Date(iso).toLocaleDateString("en-US", {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -56,23 +65,25 @@ function ForecastTooltip({ active, payload, label }: ForecastTooltipProps) {
 
   return (
     <div
+      className="font-metric"
       style={{
-        background: "#fff",
+        background: "var(--tooltip-surface)",
         border: "1px solid var(--border)",
-        borderRadius: 16,
+        borderRadius: "var(--radius-card)",
         padding: "12px 14px",
         boxShadow: "var(--shadow-md)",
+        backdropFilter: "blur(16px)",
       }}
     >
       <div style={{ marginBottom: 6, fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
         {formatLongDate(label)}
       </div>
-      <div className="num" style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
+      <div className="font-metric" style={{ fontSize: 20, fontWeight: 400, color: "var(--grey-900)" }}>
         {formatDKK(point.balanceOere)}
       </div>
       <div style={{ marginTop: 4, fontSize: 11.5, color: point.deltaOere >= 0 ? "var(--green)" : "var(--red)" }}>
         {point.deltaOere > 0 ? "+" : ""}
-        {formatDKK(point.deltaOere)} den dag
+        {formatDKK(point.deltaOere)} that day
       </div>
     </div>
   );
@@ -95,10 +106,11 @@ function PlanningLink({
       style={{
         display: "block",
         textDecoration: "none",
-        background: "var(--surface-2)",
+        background: "#ffffff",
         border: "1px solid var(--border)",
-        borderRadius: 18,
+        borderRadius: "var(--radius-card)",
         padding: "16px 18px",
+        boxShadow: "var(--shadow-sm)",
       }}
     >
       <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>{eyebrow}</div>
@@ -114,6 +126,12 @@ function PlanningLink({
 }
 
 export function PlanPage() {
+  const [budgetLimits, setBudgetLimits] = useState<Record<string, number>>(() =>
+    Object.fromEntries(BUDGETS.map((budget) => [budget.id, budget.monthlyLimitOere])),
+  );
+  const [goalBoosts, setGoalBoosts] = useState<Record<string, number>>(() =>
+    Object.fromEntries(GOALS.map((goal) => [goal.id, 0])),
+  );
   const forecast = buildCashFlowForecast(45);
   const forecastLowPoint = forecast.reduce((lowest, point) =>
     point.balanceOere < lowest.balanceOere ? point : lowest,
@@ -138,14 +156,15 @@ export function PlanPage() {
         budget.category === "Subscriptions" ? transaction.isSubscription : transaction.category === budget.category,
       )
       .reduce((sum, transaction) => sum + Math.abs(transaction.amountOere), 0);
+    const limit = budgetLimits[budget.id] ?? budget.monthlyLimitOere;
 
     return {
       id: budget.id,
       category: budget.category,
-      limit: budget.monthlyLimitOere,
+      limit,
       spent,
-      remaining: Math.max(budget.monthlyLimitOere - spent, 0),
-      ratio: budget.monthlyLimitOere > 0 ? spent / budget.monthlyLimitOere : 0,
+      remaining: Math.max(limit - spent, 0),
+      ratio: limit > 0 ? spent / limit : 0,
       essential: Boolean(budget.essential),
     };
   }).sort((a, b) => b.ratio - a.ratio);
@@ -160,7 +179,7 @@ export function PlanPage() {
     <div className="page-wrap">
       <PageHeader
         title="Plan"
-        subtitle="Tag stilling til resten af måneden, før pengene bestemmer for dig."
+        subtitle="Look ahead before the rest of the month decides for you."
         action={
           <div
             style={{
@@ -177,40 +196,40 @@ export function PlanPage() {
             }}
           >
             <CalendarClock size={13} />
-            45 dage
+            45 days
           </div>
         }
       />
 
       <div className="animate-fade-up anim-1 grid-4" style={{ marginBottom: 24 }}>
         <KpiCard
-          label="Forventet ved månedsslut"
+          label="Projected month end"
           value={formatDKK(projectedMonthEnd)}
           rawValue={projectedMonthEnd}
           formatFn={(value) => formatDKK(Math.round(value))}
-          sub="på lønkonto og drift"
+          sub="operating cash on hand"
           accent
         />
         <KpiCard
-          label="Tilbage i budget"
+          label="Budget left"
           value={formatDKK(totalBudgetLeft)}
           rawValue={totalBudgetLeft}
           formatFn={(value) => formatDKK(Math.round(value))}
-          sub={`${((spentThisMonth / totalBudgetLimit) * 100).toFixed(1)}% brugt`}
+          sub={`${((spentThisMonth / totalBudgetLimit) * 100).toFixed(1)}% used`}
         />
         <KpiCard
-          label="Kommende træk"
+          label="Upcoming outflows"
           value={formatDKK(totalUpcomingOutflows)}
           rawValue={totalUpcomingOutflows}
           formatFn={(value) => formatDKK(Math.round(value))}
-          sub="næste 30 dage"
+          sub="next 30 days"
         />
         <KpiCard
-          label="Til mål denne måned"
+          label="Goals this month"
           value={formatDKK(monthlyGoalContribution)}
           rawValue={monthlyGoalContribution}
           formatFn={(value) => formatDKK(Math.round(value))}
-          sub={`${GOALS.length} aktive mål`}
+          sub={`${GOALS.length} active goals`}
         />
       </div>
 
@@ -218,14 +237,14 @@ export function PlanPage() {
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Likviditetsplan</CardTitle>
+              <CardTitle>Cash flow plan</CardTitle>
               <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Brug forecastet til at se hvornår måneden strammer til, og hvor der stadig er luft.
+                Use the forecast to see when the month gets tighter and where you still have room to move.
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Wallet size={13} color="var(--accent)" />
-              <span className="num" style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>
+              <span className="font-metric" style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>
                 {formatDKK(projectedMonthEnd)}
               </span>
             </div>
@@ -235,21 +254,21 @@ export function PlanPage() {
               <AreaChart data={forecastChart} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
                 <defs>
                   <linearGradient id="planForecastFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#5749F4" stopOpacity={0.18} />
-                    <stop offset="100%" stopColor="#5749F4" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="#5469d4" stopOpacity={0.18} />
+                    <stop offset="100%" stopColor="#5469d4" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
                 <XAxis
                   dataKey="date"
                   tickFormatter={formatShortDate}
-                  tick={{ fontSize: 10.5, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                  tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: FIGMA_METRIC_FONT_STACK }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
                   tickFormatter={formatAxisDKK}
-                  tick={{ fontSize: 10.5, fill: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                  tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: FIGMA_METRIC_FONT_STACK }}
                   axisLine={false}
                   tickLine={false}
                 />
@@ -257,39 +276,39 @@ export function PlanPage() {
                 <Area
                   type="monotone"
                   dataKey="balanceOere"
-                  stroke="#5749F4"
+                  stroke="#5469d4"
                   strokeWidth={2.5}
                   fill="url(#planForecastFill)"
                   dot={false}
-                  activeDot={{ r: 4, fill: "#5749F4", stroke: "var(--surface-1)", strokeWidth: 2 }}
+                  activeDot={{ r: 4, fill: "#5469d4", stroke: "var(--surface-1)", strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
 
             <div className="grid-3" style={{ marginTop: 16 }}>
-              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "14px 16px" }}>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Lavpunkt</div>
-                <div className="num" style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}>
+              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", padding: "14px 16px" }}>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Low point</div>
+                <div className="font-metric" style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}>
                   {formatDKK(forecastLowPoint.balanceOere)}
                 </div>
                 <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-secondary)" }}>{formatLongDate(forecastLowPoint.date)}</div>
               </div>
-              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "14px 16px" }}>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Planlagte indbetalinger</div>
-                <div className="num" style={{ fontSize: 18, fontWeight: 600, color: "var(--green)" }}>
+              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", padding: "14px 16px" }}>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Planned income</div>
+                <div className="font-metric" style={{ fontSize: 18, fontWeight: 600, color: "var(--green)" }}>
                   +{formatDKK(totalUpcomingIncome)}
                 </div>
                 <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-secondary)" }}>
-                  {upcoming30Days.filter((event) => event.amountOere > 0).length} events kommende
+                  {upcoming30Days.filter((event) => event.amountOere > 0).length} upcoming events
                 </div>
               </div>
-              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "14px 16px" }}>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Plads i budgettet</div>
+              <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", padding: "14px 16px" }}>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Budget flexibility</div>
                 <div style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}>
-                  {totalBudgetLeft > 0 ? "Der er luft" : "På grænsen"}
+                  {totalBudgetLeft > 0 ? "Still room left" : "Right on the line"}
                 </div>
                 <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-secondary)" }}>
-                  {formatDKK(totalBudgetLeft)} tilbage af månedsbudgettet
+                  {formatDKK(totalBudgetLeft)} left in this month&apos;s budget
                 </div>
               </div>
             </div>
@@ -299,9 +318,9 @@ export function PlanPage() {
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Kommende hændelser</CardTitle>
+              <CardTitle>Upcoming events</CardTitle>
               <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Det der allerede ligger i kalenderen og vil trække eller løfte saldoen.
+                Items already on the calendar that will pull down or lift your balance.
               </div>
             </div>
           </CardHeader>
@@ -327,14 +346,14 @@ export function PlanPage() {
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 13.5, fontWeight: 500, color: "var(--text-primary)" }}>{event.merchant}</span>
                       <Badge variant={variant} size="sm">
-                        {event.type === "income" ? "Indkomst" : event.type === "subscription" ? "Abonnement" : event.label}
+                        {event.type === "income" ? "Income" : event.type === "subscription" ? "Subscription" : event.label}
                       </Badge>
                     </div>
                     <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-                      {formatLongDate(event.date)} · {daysAway === 0 ? "i dag" : daysAway === 1 ? "i morgen" : `om ${daysAway} dage`}
+                      {formatLongDate(event.date)} · {daysAway === 0 ? "today" : daysAway === 1 ? "tomorrow" : `in ${daysAway} days`}
                     </div>
                   </div>
-                  <div className="num" style={{ fontSize: 13.5, fontWeight: 600, color: event.amountOere > 0 ? "var(--green)" : "var(--text-primary)" }}>
+                  <div className="font-metric" style={{ fontSize: 13.5, fontWeight: 600, color: event.amountOere > 0 ? "var(--green)" : "var(--text-primary)" }}>
                     {event.amountOere > 0 ? "+" : ""}
                     {formatDKK(event.amountOere)}
                   </div>
@@ -349,14 +368,14 @@ export function PlanPage() {
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Budgetforløb</CardTitle>
+              <CardTitle>Budget runway</CardTitle>
               <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Se hvilke kategorier der æder fleksibiliteten først, så du kan reagere tidligt.
+                See which categories consume flexibility first so you can react early.
               </div>
             </div>
-            <Link href="/spending" style={{ fontSize: 12.5, color: "var(--accent)", textDecoration: "none" }}>
-              Se forbrug →
-            </Link>
+            <Button href="/spending" variant="ghost" size="md" style={{ fontSize: 12.5, fontWeight: 500 }}>
+              Open spending →
+            </Button>
           </CardHeader>
           <CardBody style={{ display: "grid", gap: 14 }}>
             {budgetRows.map((row, index) => {
@@ -368,10 +387,37 @@ export function PlanPage() {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>{row.category}</span>
-                      {row.essential ? <Badge variant="active">Fast</Badge> : null}
+                      {row.essential ? <Badge variant="active">Essential</Badge> : null}
                     </div>
-                    <div className="num" style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
-                      {formatDKK(row.spent)} / {formatDKK(row.limit)}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <label style={{ fontSize: 11.5, color: "var(--text-muted)" }}>Budget</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={50}
+                        value={Math.round(row.limit / 100)}
+                        onChange={(event) => {
+                          const nextValue = Number(event.target.value);
+                          setBudgetLimits((current) => ({
+                            ...current,
+                            [row.id]: Number.isFinite(nextValue) && nextValue >= 0 ? nextValue * 100 : 0,
+                          }));
+                        }}
+                        style={{
+                          width: 88,
+                          background: "var(--surface-1)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 8,
+                          padding: "6px 8px",
+                          color: "var(--text-primary)",
+                          fontSize: 12.5,
+                          fontFamily: "var(--font-metric)",
+                          textAlign: "right",
+                        }}
+                      />
+                      <div className="font-metric" style={{ fontSize: 12.5, color: "var(--text-secondary)", minWidth: 122, textAlign: "right" }}>
+                        {formatDKK(row.spent)} / {formatDKK(row.limit)}
+                      </div>
                     </div>
                   </div>
                   <div style={{ height: 8, background: "var(--surface-3)", borderRadius: 999, overflow: "hidden" }}>
@@ -385,8 +431,8 @@ export function PlanPage() {
                     />
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 6, fontSize: 11.5, color: "var(--text-muted)" }}>
-                    <span>{overBudget ? "Over budget" : `${(row.ratio * 100).toFixed(1)}% brugt`}</span>
-                    <span>{formatDKK(Math.max(row.limit - row.spent, 0))} tilbage</span>
+                    <span>{overBudget ? "Over budget" : `${(row.ratio * 100).toFixed(1)}% used`}</span>
+                    <span className="font-metric">{formatDKK(Math.max(row.limit - row.spent, 0))} left</span>
                   </div>
                 </div>
               );
@@ -397,9 +443,9 @@ export function PlanPage() {
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Mål</CardTitle>
+              <CardTitle>Goals</CardTitle>
               <div style={{ marginTop: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                Sørg for at månedens plan også flytter på dine længere mål.
+                Make sure this month&apos;s plan also moves your longer-term goals forward.
               </div>
             </div>
           </CardHeader>
@@ -410,22 +456,22 @@ export function PlanPage() {
                 goal.theme === "safety" ? "var(--green)" : goal.theme === "investing" ? "#C8842C" : "var(--accent)";
 
               return (
-                <div key={goal.id} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 18, padding: "16px" }}>
+                <div key={goal.id} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", padding: "16px" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{goal.name}</div>
                       <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)" }}>
-                        Mål dato {formatLongDate(goal.targetDate)}
+                        Target date {formatLongDate(goal.targetDate)}
                       </div>
                     </div>
                     <Badge variant={goal.theme === "safety" ? "active" : goal.theme === "investing" ? "yearly" : "monthly"}>
-                      {goal.theme === "safety" ? "Sikkerhed" : goal.theme === "investing" ? "Investering" : "Opsparing"}
+                      {goal.theme === "safety" ? "Safety" : goal.theme === "investing" ? "Investing" : "Savings"}
                     </Badge>
                   </div>
-                  <div className="num" style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: 10 }}>
+                  <div className="font-metric" style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: 10 }}>
                     {formatDKK(goal.currentOere)} / {formatDKK(goal.targetOere)}
                   </div>
-                  <div style={{ height: 8, background: "rgba(0,0,0,0.05)", borderRadius: 999, overflow: "hidden" }}>
+                  <div style={{ height: 8, background: "var(--surface-3)", borderRadius: 999, overflow: "hidden" }}>
                     <div
                       className="progress-bar-animated"
                       style={{
@@ -436,8 +482,47 @@ export function PlanPage() {
                     />
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 8, fontSize: 11.5, color: "var(--text-secondary)" }}>
-                    <span>{formatPct(progress * 100)} nået</span>
-                    <span className="num">+{formatDKK(goal.monthlyContributionOere)}/md</span>
+                    <span>{formatPct(progress * 100)} reached</span>
+                    <span className="font-metric">+{formatDKK(goal.monthlyContributionOere + goalBoosts[goal.id] * 100)}/md</span>
+                  </div>
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>What if I add more?</span>
+                      <span className="font-metric" style={{ fontSize: 12.5, color: "var(--accent)" }}>
+                        +{goalBoosts[goal.id]} kr./mo
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={2500}
+                      step={250}
+                      value={goalBoosts[goal.id]}
+                      onChange={(event) =>
+                        setGoalBoosts((current) => ({
+                          ...current,
+                          [goal.id]: Number(event.target.value),
+                        }))
+                      }
+                      style={{ width: "100%" }}
+                    />
+                    {(() => {
+                      const monthlyBoostOere = goalBoosts[goal.id] * 100;
+                      const adjustedContribution = goal.monthlyContributionOere + monthlyBoostOere;
+                      const remaining = Math.max(goal.targetOere - goal.currentOere, 0);
+                      const baseMonths = Math.ceil(remaining / goal.monthlyContributionOere);
+                      const adjustedMonths = Math.ceil(remaining / adjustedContribution);
+                      const monthsSaved = Math.max(baseMonths - adjustedMonths, 0);
+                      const adjustedDate = addMonthsToIso(MOCK_TODAY, adjustedMonths);
+
+                      return (
+                        <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>
+                          {monthlyBoostOere > 0
+                            ? `With the extra contribution, you would reach this goal around ${formatLongDate(adjustedDate)} and finish about ${monthsSaved} month${monthsSaved === 1 ? "" : "s"} sooner.`
+                            : "Use the slider to test how a bigger monthly contribution changes the timeline."}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               );
@@ -451,27 +536,27 @@ export function PlanPage() {
           <CardHeader>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Target size={14} color="var(--text-muted)" />
-              <CardTitle>Fortsæt i detaljen</CardTitle>
+              <CardTitle>Keep going</CardTitle>
             </div>
           </CardHeader>
           <CardBody className="grid-3">
             <PlanningLink
               href="/accounts"
-              eyebrow="Kontostruktur"
-              title="Tjek konti og forbindelser"
-              description="Sørg for at pengene ligger rigtigt, og at alle datakilder faktisk er aktive."
+              eyebrow="Account setup"
+              title="Check accounts and connections"
+              description="Make sure cash sits in the right places and every data source is actually active."
             />
             <PlanningLink
               href="/spending"
-              eyebrow="Budgetdetaljer"
-              title="Åbn kategori-forbrug"
-              description="Gå fra overblik til konkrete kategorier og merchants, der presser planen."
+              eyebrow="Budget detail"
+              title="Open category spending"
+              description="Move from overview to the categories and merchants putting pressure on the plan."
             />
             <PlanningLink
               href="/subscriptions"
-              eyebrow="Faste træk"
-              title="Gennemgå abonnementer"
-              description="Se hvilke tilbagevendende træk der bør med i næste måneds beslutninger."
+              eyebrow="Recurring charges"
+              title="Review subscriptions"
+              description="See which recurring charges should shape next month's decisions."
             />
           </CardBody>
         </Card>

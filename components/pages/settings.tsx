@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RefreshCw, Trash2, Download, AlertTriangle, CheckCircle, Shield, ChevronDown } from "lucide-react";
 import { ACCOUNTS } from "@/lib/mock-data";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 
@@ -67,12 +68,12 @@ export function SettingsPage() {
 
   return (
     <div className="page-wrap">
-      <PageHeader title="Indstillinger" subtitle="Administrer din konto og forbindelser" />
+      <PageHeader title="Settings" subtitle="Manage your account and connected institutions" />
 
       <div style={{ maxWidth: 640 }}>
 
         {/* Profile */}
-        <Section title="Profil">
+        <Section title="Profile">
           <Card>
             <CardBody style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 4 }}>
@@ -81,7 +82,7 @@ export function SettingsPage() {
                     width: 56,
                     height: 56,
                     borderRadius: "50%",
-                    background: "linear-gradient(135deg, var(--accent), #6E63F7)",
+                    background: "var(--brand-gradient)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -106,7 +107,7 @@ export function SettingsPage() {
                       background: "var(--accent-glow)",
                       padding: "4px 10px",
                       borderRadius: 999,
-                      border: "1px solid rgba(87,73,244,0.16)",
+                      border: "1px solid var(--accent-border)",
                       marginTop: 4,
                     }}
                   >
@@ -116,12 +117,12 @@ export function SettingsPage() {
               </div>
 
               <div className="grid-2" style={{ gap: 12 }}>
-                <InputField label="Navn" value={name} onChange={setName} />
+                <InputField label="Name" value={name} onChange={setName} />
                 <InputField label="Email" value={email} type="email" onChange={setEmail} />
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                <label style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>Valuta</label>
+                <label style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>Currency</label>
                 <select
                   value={currency}
                   onChange={e => setCurrency(e.target.value)}
@@ -138,37 +139,22 @@ export function SettingsPage() {
                     cursor: "pointer",
                   }}
                 >
-                  <option value="DKK">DKK — Dansk krone</option>
+                  <option value="DKK">DKK — Danish krone</option>
                   <option value="EUR">EUR — Euro</option>
                 </select>
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <button
-                  style={{
-                    padding: "8px 18px",
-                    background: "var(--accent)",
-                    border: "none",
-                    borderRadius: 8,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: "#fff",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    transition: "opacity 120ms",
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.opacity = "0.9")}
-                  onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
-                >
-                  Gem ændringer
-                </button>
+                <Button type="button" variant="primary" size="md" style={{ fontSize: 13 }}>
+                  Save changes
+                </Button>
               </div>
             </CardBody>
           </Card>
         </Section>
 
         {/* Bank connections */}
-        <Section title="Bankforbindelser">
+        <Section title="Bank connections">
           <Card>
             <CardBody style={{ padding: 0 }}>
               {ACCOUNTS.map((account, i) => (
@@ -206,61 +192,37 @@ export function SettingsPage() {
                     <div style={{ fontSize: 11.5, display: "flex", alignItems: "center", gap: 4 }}>
                       {account.status === "expired" ? (
                         <span style={{ color: "var(--red)", display: "flex", alignItems: "center", gap: 4 }}>
-                          <AlertTriangle size={10} /> Forbindelsen udløbet
+                          <AlertTriangle size={10} /> Connection expired
                         </span>
                       ) : (
                         <span style={{ color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
-                          <CheckCircle size={10} color="var(--green)" /> Aktiv · Synkroniseret {account.lastSynced}
+                          <CheckCircle size={10} color="var(--green)" /> Active · Synced {account.lastSynced}
                         </span>
                       )}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     {account.status === "expired" && (
-                      <button
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 5,
-                          padding: "5px 12px",
-                          background: "rgba(239,68,68,0.10)",
-                          border: "1px solid rgba(239,68,68,0.3)",
-                          borderRadius: 6,
-                          fontSize: 12,
-                          color: "var(--red)",
-                          cursor: "pointer",
-                          fontFamily: "inherit",
-                        }}
-                      >
-                        <RefreshCw size={11} /> Genopret
-                      </button>
+                      <Button type="button" variant="danger" size="sm" icon={<RefreshCw size={11} />} style={{ fontSize: 12 }}>
+                        Reconnect
+                      </Button>
                     )}
-                    <button
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 5,
-                        padding: "5px 12px",
-                        background: "var(--surface-2)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 6,
-                        fontSize: 12,
-                        color: "var(--text-secondary)",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                        transition: "all 120ms",
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      style={{ fontSize: 12, border: "1px solid var(--border)", boxShadow: "none" }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = "var(--red)";
+                        e.currentTarget.style.borderColor = "var(--danger-border-strong)";
                       }}
-                      onMouseEnter={e => {
-                        (e.currentTarget as HTMLButtonElement).style.color = "var(--red)";
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.3)";
-                      }}
-                      onMouseLeave={e => {
-                        (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)";
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = "var(--text-secondary)";
+                        e.currentTarget.style.borderColor = "var(--border)";
                       }}
                     >
-                      Frakobl
-                    </button>
+                      Disconnect
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -269,13 +231,13 @@ export function SettingsPage() {
         </Section>
 
         {/* Notifications */}
-        <Section title="Notifikationer">
+        <Section title="Notifications">
           <Card>
             <CardBody style={{ display: "flex", flexDirection: "column", gap: 0 }}>
               {[
-                { key: "newSubscription" as const, label: "Nyt abonnement opdaget", sub: "Besked når et nyt abonnement identificeres" },
-                { key: "expiringBank" as const, label: "Bankforbindelse udløber", sub: "Besked 14 dage før forbindelsen udløber" },
-                { key: "priceChange" as const, label: "Prisændringer på abonnementer", sub: "Besked når en abonnementspris ændres" },
+                { key: "newSubscription" as const, label: "New subscription detected", sub: "Alert me when a new subscription is identified" },
+                { key: "expiringBank" as const, label: "Bank connection expiring", sub: "Alert me 14 days before a connection expires" },
+                { key: "priceChange" as const, label: "Subscription price changes", sub: "Alert me when a subscription price changes" },
               ].map((item, i, arr) => (
                 <div
                   key={item.key}
@@ -325,7 +287,7 @@ export function SettingsPage() {
         </Section>
 
         {/* Security */}
-        <Section title="Sikkerhed og privatliv">
+        <Section title="Security and privacy">
           <Card>
             <CardBody style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div
@@ -334,52 +296,50 @@ export function SettingsPage() {
                   alignItems: "center",
                   gap: 10,
                   padding: "12px 14px",
-                  background: "rgba(34,197,94,0.06)",
-                  border: "1px solid rgba(34,197,94,0.15)",
+                  background: "var(--accent-glow)",
+                  border: "1px solid var(--accent-border)",
                   borderRadius: 8,
                   fontSize: 12.5,
                   color: "var(--text-secondary)",
                 }}
               >
                 <Shield size={14} color="var(--green)" />
-                Bankadgangsdata er krypteret med AES-256-GCM og opbevares aldrig i klartekst
+                Bank access data is encrypted with AES-256-GCM and never stored in plain text
               </div>
               <div style={{ display: "flex", gap: 10 }}>
-                <button
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  icon={<Download size={13} />}
                   style={{
                     flex: 1,
-                    display: "flex",
-                    alignItems: "center",
                     justifyContent: "center",
-                    gap: 7,
                     padding: "9px 16px",
-                    background: "var(--surface-2)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
                     fontSize: 13,
                     color: "var(--text-secondary)",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    transition: "all 120ms",
+                    border: "1px solid var(--border)",
+                    boxShadow: "none",
+                    background: "var(--surface-2)",
                   }}
-                  onMouseEnter={e => {
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-strong)";
-                    (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-strong)";
+                    e.currentTarget.style.color = "var(--text-primary)";
                   }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)";
-                    (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border)";
+                    e.currentTarget.style.color = "var(--text-secondary)";
                   }}
                 >
-                  <Download size={13} /> Eksportér mine data (GDPR)
-                </button>
+                  Export my data (GDPR)
+                </Button>
               </div>
             </CardBody>
           </Card>
         </Section>
 
         {/* Danger zone — collapsed accordion */}
-        <Section title="Avanceret">
+        <Section title="Advanced">
           <div
             style={{
               border: "1px solid var(--border)",
@@ -396,7 +356,7 @@ export function SettingsPage() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "14px 18px",
-                background: dangerOpen ? "rgba(239,68,68,0.04)" : "var(--surface-1)",
+                background: dangerOpen ? "var(--danger-bg)" : "var(--surface-1)",
                 border: "none",
                 cursor: "pointer",
                 fontFamily: "inherit",
@@ -405,8 +365,8 @@ export function SettingsPage() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Trash2 size={13} color="var(--red)" />
-                <span style={{ fontSize: 13.5, fontWeight: 500, color: dangerOpen ? "#F87171" : "var(--text-secondary)" }}>
-                  Slet konto
+                <span style={{ fontSize: 13.5, fontWeight: 500, color: dangerOpen ? "var(--red)" : "var(--text-secondary)" }}>
+                  Delete account
                 </span>
               </div>
               <ChevronDown
@@ -421,42 +381,35 @@ export function SettingsPage() {
               <div
                 style={{
                   padding: "16px 18px 18px",
-                  background: "rgba(239,68,68,0.04)",
-                  borderTop: "1px solid rgba(239,68,68,0.15)",
+                  background: "var(--surface-2)",
+                  borderTop: "1px solid var(--danger-border)",
                 }}
               >
                 <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 14 }}>
-                  Sletter permanent alle dine data inkl. transaktioner, abonnementer og bankforbindelser.
-                  Handlingen kan ikke fortrydes. I henhold til GDPR Art. 17 gennemføres sletningen inden for 24 timer.
+                  Permanently deletes all your data including transactions, subscriptions, and bank connections.
+                  This action cannot be undone. Under GDPR Article 17, deletion is completed within 24 hours.
                 </div>
                 {!deleteConfirm ? (
-                  <button
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="md"
+                    icon={<Trash2 size={13} />}
                     onClick={() => setDeleteConfirm(true)}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 7,
-                      padding: "8px 16px",
                       background: "transparent",
-                      border: "1px solid rgba(239,68,68,0.4)",
-                      borderRadius: 8,
-                      fontSize: 13,
-                      color: "var(--red)",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      transition: "all 120ms",
+                      boxShadow: "none",
+                      border: "1px solid var(--danger-border-strong)",
                     }}
-                    onMouseEnter={e => {
-                      (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)";
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.6)";
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "var(--danger-bg)";
                     }}
-                    onMouseLeave={e => {
-                      (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.4)";
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
                     }}
                   >
-                    <Trash2 size={13} /> Slet min konto
-                  </button>
+                    Delete my account
+                  </Button>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     <div
@@ -465,50 +418,29 @@ export function SettingsPage() {
                         alignItems: "center",
                         gap: 8,
                         padding: "10px 14px",
-                        background: "rgba(239,68,68,0.10)",
-                        border: "1px solid rgba(239,68,68,0.3)",
+                        background: "var(--danger-bg)",
+                        border: "1px solid var(--danger-border)",
                         borderRadius: 8,
                         fontSize: 13,
-                        color: "#F87171",
+                        color: "var(--red)",
                       }}
                     >
                       <AlertTriangle size={14} />
-                      Er du sikker? Denne handling kan ikke fortrydes.
+                      Are you sure? This action cannot be undone.
                     </div>
                     <div style={{ display: "flex", gap: 10 }}>
-                      <button
-                        onClick={() => setDeleteConfirm(false)}
-                        style={{
-                          padding: "8px 16px",
-                          background: "var(--surface-2)",
-                          border: "1px solid var(--border)",
-                          borderRadius: 8,
-                          fontSize: 13,
-                          color: "var(--text-secondary)",
-                          cursor: "pointer",
-                          fontFamily: "inherit",
-                        }}
+                      <Button type="button" variant="secondary" size="md" onClick={() => setDeleteConfirm(false)} style={{ border: "1px solid var(--border)", boxShadow: "none", background: "var(--surface-2)", color: "var(--text-secondary)" }}>
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="md"
+                        icon={<Trash2 size={13} />}
+                        style={{ background: "var(--red)", color: "#fff" }}
                       >
-                        Annuller
-                      </button>
-                      <button
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 7,
-                          padding: "8px 16px",
-                          background: "var(--red)",
-                          border: "none",
-                          borderRadius: 8,
-                          fontSize: 13,
-                          fontWeight: 500,
-                          color: "#fff",
-                          cursor: "pointer",
-                          fontFamily: "inherit",
-                        }}
-                      >
-                        <Trash2 size={13} /> Bekræft sletning
-                      </button>
+                        Confirm deletion
+                      </Button>
                     </div>
                   </div>
                 )}

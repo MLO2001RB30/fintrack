@@ -13,12 +13,12 @@ export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
         <h1
           style={{
             fontFamily: "var(--font-display)",
-            fontSize: 32,
-            fontWeight: 600,
+            fontSize: "clamp(1.5rem, 2.6vw, 1.75rem)",
+            fontWeight: 700,
             color: "var(--text-primary)",
             margin: 0,
-            lineHeight: 1.1,
-            letterSpacing: "-0.035em",
+            lineHeight: 1.15,
+            letterSpacing: "-0.02em",
           }}
         >
           {title}
@@ -26,11 +26,12 @@ export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
         {subtitle && (
           <p
             style={{
-              margin: "6px 0 0",
+              margin: "10px 0 0",
               fontSize: 14,
-              color: "var(--text-muted)",
+              color: "var(--text-secondary)",
               fontWeight: 400,
-              letterSpacing: "-0.01em",
+              letterSpacing: "0",
+              maxWidth: 760,
             }}
           >
             {subtitle}
