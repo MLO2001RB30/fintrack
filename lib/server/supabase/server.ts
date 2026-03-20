@@ -15,8 +15,10 @@ export async function createSupabaseServerClient() {
     "NEXT_PUBLIC_SUPABASE_URL",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   );
+  const url = NEXT_PUBLIC_SUPABASE_URL!;
+  const anonKey = NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  return createServerClient(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+  return createServerClient(url, anonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

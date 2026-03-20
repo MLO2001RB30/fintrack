@@ -119,9 +119,10 @@ export function useReviewQueue() {
 
       setPersistenceMode(payload.data.persistence);
 
-      if (payload.data.state) {
+      const savedState = payload.data.state;
+      if (savedState) {
         setStates((current) => {
-          const next = mergeReviewItemStates(current, [payload.data.state]);
+          const next = mergeReviewItemStates(current, [savedState]);
           writeLocalReviewItemStates(next);
           broadcastReviewQueueUpdated();
           return next;

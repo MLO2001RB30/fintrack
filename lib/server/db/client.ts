@@ -25,5 +25,6 @@ export function getDb() {
 
 export async function withTransaction<T>(callback: (sql: Sql) => Promise<T>) {
   const db = getDb();
-  return db.begin((sql) => callback(sql));
+  // `postgres` passes `TransactionSql` inside `begin`; it is callable at runtime but not in this union's typings.
+  return db.begin((tx) => callback(tx as unknown as Sql));
 }

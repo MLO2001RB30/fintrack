@@ -2,7 +2,7 @@ import "server-only";
 
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
-import { getEnv, isEncryptionConfigured, requireEnv } from "@/lib/server/env";
+import { getEnv, isEncryptionConfigured } from "@/lib/server/env";
 import { ApiError } from "@/lib/server/http";
 
 type EncryptionKeyMap = Record<string, string>;
@@ -25,12 +25,15 @@ function getKeyStore() {
     return cachedKeys;
   }
 
-  const { FINTRACK_ENCRYPTION_KEYS } = requireEnv("FINTRACK_ENCRYPTION_KEYS");
+  const keysJson = getEnv().FINTRACK_ENCRYPTION_KEYS;
+  if (!keysJson) {
+    throw new ApiError(503, "encryption_not_configured", "Encryption keys are not configured.");
+  }
 
   let parsed: EncryptionKeyMap;
 
   try {
-    parsed = JSON.parse(FINTRACK_ENCRYPTION_KEYS);
+    parsed = JSON.parse(keysJson);
   } catch (error) {
     throw new ApiError(500, "invalid_encryption_keys", "FINTRACK_ENCRYPTION_KEYS must be valid JSON.", error);
   }
@@ -50,16 +53,19 @@ function getKeyStore() {
 }
 
 function getActiveKey() {
-  const { FINTRACK_ACTIVE_ENCRYPTION_KEY_ID } = requireEnv("FINTRACK_ACTIVE_ENCRYPTION_KEY_ID");
+  const activeId = getEnv().FINTRACK_ACTIVE_ENCRYPTION_KEY_ID;
+  if (!activeId) {
+    throw new ApiError(503, "encryption_not_configured", "Encryption keys are not configured.");
+  }
   const keys = getKeyStore();
-  const key = keys.get(FINTRACK_ACTIVE_ENCRYPTION_KEY_ID);
+  const key = keys.get(activeId);
 
   if (!key) {
     throw new ApiError(500, "active_encryption_key_missing", "The active encryption key is not present.");
   }
 
   return {
-    keyId: FINTRACK_ACTIVE_ENCRYPTION_KEY_ID,
+    keyId: activeId,
     key,
   };
 }

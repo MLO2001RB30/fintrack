@@ -370,7 +370,7 @@ export function Dashboard() {
                       fontSize: 12,
                       fontFamily: FIGMA_METRIC_FONT_STACK,
                     }}
-                    formatter={(value: number) => [formatKr(value), "Cleared"]}
+                    formatter={(value) => [formatKr(typeof value === "number" ? value : 0), "Cleared"]}
                     labelFormatter={(h) => `${`${h}`.padStart(2, "0")}:00`}
                   />
                   <Area

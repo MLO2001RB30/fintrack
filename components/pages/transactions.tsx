@@ -525,9 +525,10 @@ export function TransactionsPage({
 
               setPersistenceMode(payload.data.persistence);
 
-              if (payload.data.override) {
+              const savedOverride = payload.data.override;
+              if (savedOverride) {
                 setOverrides((current) => {
-                  const next = mergeOverrideCollections(current, [payload.data.override]);
+                  const next = mergeOverrideCollections(current, [savedOverride]);
                   writeLocalTransactionOverrides(next);
                   return next;
                 });

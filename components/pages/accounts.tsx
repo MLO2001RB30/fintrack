@@ -615,9 +615,10 @@ export function AccountsPage({
 
       setPreferenceMode(payload.data.persistence);
 
-      if (payload.data.preference) {
+      const savedPreference = payload.data.preference;
+      if (savedPreference) {
         setPreferences((current) => {
-          const next = mergeAccountPreferences(current, [payload.data.preference]);
+          const next = mergeAccountPreferences(current, [savedPreference]);
           writeLocalAccountPreferences(next);
           return next;
         });
